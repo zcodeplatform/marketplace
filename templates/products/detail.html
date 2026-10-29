@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}{{ product.title }}{% endblock %}
+{% block head %}
+  <meta property="og:title" content="{{ product.title }} · {{ product.price|money }}" />
+  <meta property="og:description" content="{{ product.description|truncate(150) }}" />
+  <meta property="og:image" content="{{ url_for('static', filename=product.image_path or 'img/placeholder.svg', _external=True) }}" />
+  <link rel="canonical" href="{{ product.public_url }}" />
+{% endblock %}
+{% block content %}
+<section class="wrap page detail">
+  <div class="detail-img">
+    <img src="{{ product.image_url }}" alt="{{ product.title }}" />
+    {% if product.is_sold %}<span class="tag tag-sold">Sold</span>{% endif %}
+  </div>
+  <div class="detail-info">
+    <p class="cat">{{ product.category }}</p>
+    <h1>{{ product.title }}</h1>
+    <p class="detail-price">{{ product.price|money }}</p>
+    <p class="detail-desc">{{ product.description or 'No description provided.' }}</p>
+    <p class="seller-line">Sold by <strong>{{ product.seller.name }}</strong> · listed {{ product.created_at.strftime('%b %d, %Y') }}</p>
+    {% if product.seller.show_phone and product.seller.phone %}
+      {% set digits = product.seller.phone|replace('+','')|replace(' ','')|replace('-','') %}
+      {% set wa_text = "Hi, I'm interested in " ~ product.title ~ " " ~ product.public_url %}
+      <p class="seller-line">
+        <a class="link" href="tel:+{{ digits }}">Call {{ product.seller.phone }}</a> ·
+        <a class="link" href="https://wa.me/{{ digits }}?text={{ wa_text|urlencode }}" target="_blank" rel="noopener">WhatsApp</a>
+      </p>
+    {% endif %}
+
+    <div class="detail-actions">
+      {% if product.is_sold %}
+        <span class="status-pill status-sold">This item has been sold</span>
+      {% else %}
+        <button class="btn" type="button" data-add
+                data-id="{{ product.id }}" data-name="{{ product.title }}" data-price="{{ product.price }}" data-image="{{ product.image_url }}">Add to bag</button>
+      {% endif %}
+      <button class="btn btn-outline" type="button" data-share data-url="{{ product.public_url }}" data-title="{{ product.title }}">Copy link</button>
+    </div>
+    <div class="share-box">
+      <input type="text" readonly value="{{ product.public_url }}" aria-label="Shareable link" data-share-input onclick="this.select()" />
+    </div>
+
+    {% if current_user.is_authenticated and current_user.id == product.seller_id %}
+    <div class="owner-box">
+      <p class="muted">You're the seller</p>
+      <a class="btn btn-sm btn-outline" href="{{ url_for('seller.edit', product_id=product.id) }}">Edit</a>
+      <form method="post" action="{{ url_for('seller.toggle_status', product_id=product.id) }}" class="inline-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <button class="btn btn-sm btn-outline" type="submit">Mark as {{ 'active' if product.is_sold else 'sold' }}</button>
+      </form>
+      <form method="post" action="{{ url_for('seller.delete', product_id=product.id) }}" class="inline-form" onsubmit="return confirm('Delete this product permanently?')">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <button class="btn btn-sm btn-danger" type="submit">Delete</button>
+      </form>
+    </div>
+    {% endif %}
+  </div>
+</section>
+{% endblock %}

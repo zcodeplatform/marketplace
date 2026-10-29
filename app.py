@@ -1,0 +1,102 @@
+import click
+from dotenv import load_dotenv
+from flask import Flask, render_template
+
+from config import Config
+from extensions import csrf, db, login_manager, oauth
+
+load_dotenv()
+
+
+def create_app(config_object=Config):
+    app = Flask(__name__)
+    app.config.from_object(config_object)
+
+    db.init_app(app)
+    login_manager.init_app(app)
+    csrf.init_app(app)
+    oauth.init_app(app)
+
+    # Google OAuth (OpenID Connect). Authlib reads GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET from config.
+    oauth.register(
+        name="google",
+        server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
+        client_kwargs={"scope": "openid email profile"},
+    )
+
+    from auth import bp as auth_bp
+    from main import bp as main_bp
+    from account import bp as profile_bp
+    from seller import bp as seller_bp
+
+    for bp in (main_bp, auth_bp, seller_bp, profile_bp):
+        app.register_blueprint(bp)
+
+    @app.context_processor
+    def inject_globals():
+        return {
+            "google_enabled": bool(app.config["GOOGLE_CLIENT_ID"] and app.config["GOOGLE_CLIENT_SECRET"]),
+            "currency": app.config["CURRENCY_SYMBOL"],
+        }
+
+    @app.template_filter("money")
+    def money(value):
+        text = f"{value:,.2f}"
+        return app.config["CURRENCY_SYMBOL"] + (text[:-3] if text.endswith(".00") else text)
+
+    @app.errorhandler(403)
+    def forbidden(_):
+        return render_template("error.html", code=403, message="You don't have permission to do that."), 403
+
+    @app.errorhandler(404)
+    def not_found(_):
+        return render_template("error.html", code=404, message="We couldn't find that page."), 404
+
+    @app.errorhandler(413)
+    def too_large(_):
+        return render_template("error.html", code=413, message="That file is too large (5 MB max)."), 413
+
+    register_cli(app)
+
+    with app.app_context():
+        db.create_all()
+    return app
+
+
+def register_cli(app):
+    @app.cli.command("seed-demo")
+    def seed_demo():
+        """Load the original six storefront products under a demo seller."""
+        from models import Product, User
+
+        seller = User.query.filter_by(email="demo@marketplace.local").first()
+        if not seller:
+            seller = User(name="Comrade Market", email="demo@marketplace.local")  # no password: cannot log in
+            db.session.add(seller)
+            db.session.flush()
+        items = [
+            ("Pour-over carafe", 68, "Table", "carafe", "Cream stoneware, one pour."),
+            ("Charcoal throw", 140, "Home", "throw", "Heavy wool, finished edges."),
+            ("Brass desk lamp", 210, "Light", "lamp", "Linen shade, warm metal."),
+            ("Dinner plates", 96, "Table", "plates", "Matte black, set of four."),
+            ("Tan loafers", 248, "Wear", "loafers", "Unlined leather, everyday."),
+            ("Amber bottle", 54, "Scent", "amber", "Cedar, resin, quiet citrus."),
+        ]
+        added = 0
+        for title, price, cat, img, note in items:
+            if Product.query.filter_by(title=title, seller_id=seller.id).first():
+                continue
+            db.session.add(Product(
+                title=title, slug=Product.make_slug(title), description=note, price=price,
+                category=cat, image_path=f"products/{img}.jpg", seller_id=seller.id,
+            ))
+            db.session.flush()
+            added += 1
+        db.session.commit()
+        click.echo(f"Seeded {added} product(s).")
+
+
+app = create_app()
+
+if __name__ == "__main__":
+    app.run(debug=True)

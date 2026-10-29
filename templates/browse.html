@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% from "_card.html" import product_card %}
+{% block title %}Browse{% endblock %}
+{% block content %}
+<section class="wrap page">
+  <h1 class="page-title">Browse</h1>
+  <form class="filters" method="get">
+    <input type="search" name="q" value="{{ q }}" placeholder="Search products…" aria-label="Search" />
+    <select name="category" aria-label="Category">
+      <option value="">All categories</option>
+      {% for c in categories %}<option value="{{ c }}" {{ 'selected' if c == category }}>{{ c }}</option>{% endfor %}
+    </select>
+    <label class="check"><input type="checkbox" name="sold" value="1" {{ 'checked' if show_sold }} /> Include sold</label>
+    <button class="btn btn-sm" type="submit">Filter</button>
+  </form>
+  {% if products %}
+    <ul class="grid">{% for p in products %}{{ product_card(p) }}{% endfor %}</ul>
+  {% else %}
+    <p class="empty-note">No products match your search.</p>
+  {% endif %}
+</section>
+{% endblock %}

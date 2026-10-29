@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Sign up{% endblock %}
+{% block content %}
+<section class="auth-card">
+  <h1>Create your account</h1>
+  {% include "auth/_google.html" %}
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <input type="hidden" name="next" value="{{ request.args.get('next', '') }}" />
+    <label>Name<input type="text" name="name" value="{{ name or '' }}" required maxlength="120" autocomplete="name" /></label>
+    <label>Email<input type="email" name="email" value="{{ email or '' }}" required autocomplete="email" /></label>
+    <label>Password<input type="password" name="password" required minlength="8" autocomplete="new-password" />
+      <small>At least 8 characters.</small></label>
+    <button class="btn btn-block" type="submit">Sign up</button>
+  </form>
+  <p class="auth-alt">Already have an account? <a class="link" href="{{ url_for('auth.login', next=request.args.get('next')) }}">Log in</a></p>
+</section>
+{% endblock %}

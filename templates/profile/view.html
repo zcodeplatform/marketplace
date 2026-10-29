@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Your profile{% endblock %}
+{% block content %}
+<section class="wrap page">
+  <div class="profile-head">
+    {% set u = current_user %}
+    <div class="avatar-lg">{% include "_avatar.html" with context %}</div>
+    <div>
+      <h1>{{ current_user.name }}</h1>
+      <p class="muted">{{ current_user.email }}</p>
+      {% if current_user.phone %}
+        <p class="muted">{{ current_user.phone }}{% if not current_user.show_phone %} · hidden from buyers{% endif %}</p>
+      {% endif %}
+      {% if current_user.bio %}<p class="bio">{{ current_user.bio }}</p>{% endif %}
+      <p class="muted">Member since {{ current_user.created_at.strftime('%B %Y') }}{% if current_user.google_id %} · Signed in with Google{% endif %}</p>
+      <a class="btn btn-sm btn-outline" href="{{ url_for('profile.edit') }}">Edit profile</a>
+    </div>
+  </div>
+
+  <div class="section-head">
+    <h2>Your products <span class="muted">({{ products|length }})</span></h2>
+    <a class="btn btn-sm" href="{{ url_for('seller.new') }}">+ Sell a product</a>
+  </div>
+
+  {% if products %}
+  <ul class="my-products">
+    {% for p in products %}
+    <li>
+      <a href="{{ url_for('main.product_detail', slug=p.slug) }}"><img src="{{ p.image_url }}" alt="" /></a>
+      <div class="mp-info">
+        <a href="{{ url_for('main.product_detail', slug=p.slug) }}" class="mp-title">{{ p.title }}</a>
+        <p class="muted">{{ p.category }} · {{ p.price|money }}
+          <span class="status-pill status-{{ p.status }}">{{ p.status }}</span></p>
+      </div>
+      <div class="mp-actions">
+        <a class="btn btn-sm btn-outline" href="{{ url_for('seller.edit', product_id=p.id) }}">Edit</a>
+        <form method="post" action="{{ url_for('seller.toggle_status', product_id=p.id) }}" class="inline-form">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <button class="btn btn-sm btn-outline" type="submit">Mark {{ 'active' if p.is_sold else 'sold' }}</button>
+        </form>
+        <form method="post" action="{{ url_for('seller.delete', product_id=p.id) }}" class="inline-form" onsubmit="return confirm('Delete this product permanently?')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <button class="btn btn-sm btn-danger" type="submit">Delete</button>
+        </form>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+    <p class="empty-note">You haven't listed anything yet.</p>
+  {% endif %}
+</section>
+{% endblock %}

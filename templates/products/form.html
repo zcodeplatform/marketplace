@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}{{ 'Edit product' if product else 'Sell a product' }}{% endblock %}
+{% block content %}
+{% set v = form if form else {} %}
+<section class="auth-card wide">
+  <h1>{{ 'Edit product' if product else 'Sell a product' }}</h1>
+  <form method="post" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <label>Title<input type="text" name="title" maxlength="150" required value="{{ v.get('title', product.title if product else '') }}" /></label>
+    <label>Description<textarea name="description" rows="5">{{ v.get('description', product.description if product else '') }}</textarea></label>
+    <div class="row">
+      <label>Price ({{ currency }})<input type="number" name="price" step="0.01" min="0" required value="{{ v.get('price', product.price if product else '') }}" /></label>
+      <label>Category
+        {% set cur = v.get('category', product.category if product else 'Other') %}
+        <select name="category">{% for c in categories %}<option value="{{ c }}" {{ 'selected' if c == cur }}>{{ c }}</option>{% endfor %}</select>
+      </label>
+      <label>Status
+        {% set st = v.get('status', product.status if product else 'active') %}
+        <select name="status"><option value="active" {{ 'selected' if st == 'active' }}>Active</option><option value="sold" {{ 'selected' if st == 'sold' }}>Sold</option></select>
+      </label>
+    </div>
+    <label>Image
+      {% if product and product.image_path %}<img class="thumb" src="{{ product.image_url }}" alt="Current image" />{% endif %}
+      <input type="file" name="image" accept="image/png,image/jpeg,image/webp,image/gif" />
+      <small>PNG, JPG, WEBP or GIF, up to 5 MB.{% if product %} Leave empty to keep the current image.{% endif %}</small>
+    </label>
+    <button class="btn btn-block" type="submit">{{ 'Save changes' if product else 'Publish product' }}</button>
+  </form>
+</section>
+{% endblock %}

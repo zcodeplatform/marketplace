@@ -1,0 +1,7 @@
+{# Small avatar: uploaded/Google picture, else initials. Expects `current_user` or `u`. #}
+{% set person = u if u is defined else current_user %}
+{% if person.avatar_url %}
+  <img class="avatar" src="{{ person.avatar_url }}" alt="" referrerpolicy="no-referrer" />
+{% else %}
+  <span class="avatar avatar-initials">{{ person.initials }}</span>
+{% endif %}

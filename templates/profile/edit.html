@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Edit profile{% endblock %}
+{% block content %}
+<section class="auth-card">
+  <h1>Edit profile</h1>
+  <form method="post" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <div class="avatar-edit">
+      {% set u = current_user %}
+      <div class="avatar-lg">{% include "_avatar.html" with context %}</div>
+      <div>
+        <input type="file" name="avatar" accept="image/png,image/jpeg,image/webp,image/gif" />
+        {% if current_user.avatar_path %}
+          <label class="check"><input type="checkbox" name="remove_avatar" /> Remove uploaded photo{% if current_user.picture_url %} (use Google photo){% endif %}</label>
+        {% endif %}
+      </div>
+    </div>
+    <label>Name<input type="text" name="name" maxlength="120" required value="{{ request.form.get('name', current_user.name) }}" /></label>
+    <label>Email<input type="email" value="{{ current_user.email }}" disabled /><small>Email can't be changed.</small></label>
+    <label>Bio<textarea name="bio" rows="3" maxlength="500">{{ request.form.get('bio', current_user.bio or '') }}</textarea></label>
+    <label>Phone
+      <input type="tel" name="phone" maxlength="20" placeholder="+254 712 345 678"
+             value="{{ request.form.get('phone', current_user.phone or '') }}" />
+      <small>Include the country code so buyers can reach you on WhatsApp.</small>
+    </label>
+    <label class="check">
+      <input type="checkbox" name="show_phone" {{ 'checked' if current_user.show_phone }} />
+      Show my phone number on my product pages
+    </label>
+    <button class="btn btn-block" type="submit">Save changes</button>
+    <a class="auth-alt link" href="{{ url_for('profile.view') }}">Cancel</a>
+  </form>
+</section>
+{% endblock %}
