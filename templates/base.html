@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
   {% block head %}{% endblock %}
 </head>
-<body data-currency="{{ currency }}">
+<body data-currency="{{ currency }}" data-cart-url="{{ url_for('main.cart') }}" data-browse-url="{{ url_for('main.browse') }}">
   <header>
     <div class="wrap bar">
       <!-- Logo: left -->

@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% block title %}Your cart{% endblock %}
+{% block content %}
+<section class="wrap page cart-page">
+  <div class="cart-page-heading">
+    <div>
+      <p class="kicker">Your selection</p>
+      <h1>Your cart</h1>
+    </div>
+    <a class="shop-all-link" href="{{ url_for('main.browse') }}">Continue shopping</a>
+  </div>
+  <div data-cart-page aria-live="polite">
+    <p class="empty-note">Loading your cart…</p>
+  </div>
+</section>
+{% endblock %}

@@ -13,11 +13,47 @@
     {% if product.is_sold %}<span class="tag tag-sold">Sold</span>{% endif %}
   </div>
   <div class="detail-info">
-    <p class="cat">{{ product.category }}</p>
-    <h1>{{ product.title }}</h1>
-    <p class="detail-price">{{ product.price|money }}</p>
-    <p class="detail-desc">{{ product.description or 'No description provided.' }}</p>
-    <p class="seller-line">Sold by <strong>{{ product.seller.name }}</strong> · listed {{ product.created_at.strftime('%b %d, %Y') }}</p>
+    <div class="product-purchase">
+      <p class="cat">{{ product.category }}</p>
+      <h1>{{ product.title }}</h1>
+      <p class="detail-price">{{ product.price|money }}</p>
+      {% if product.is_sold %}
+        <p class="availability sold-label">This item has been sold</p>
+      {% else %}
+        <p class="availability"><span aria-hidden="true"></span> Available from the seller</p>
+      {% endif %}
+      {% if not product.is_sold %}
+        <div class="product-quantity">
+          <label for="product-quantity">Quantity</label>
+          <div class="qty-stepper">
+            <button type="button" aria-label="Decrease quantity" data-quantity-decrease>-</button>
+            <input id="product-quantity" type="number" min="1" step="1" value="1" inputmode="numeric" data-product-quantity />
+            <button type="button" aria-label="Increase quantity" data-quantity-increase>+</button>
+          </div>
+        </div>
+      {% endif %}
+      <div class="detail-actions">
+        {% if not product.is_sold %}
+          <button class="btn" type="button" data-add
+                  data-id="{{ product.id }}" data-name="{{ product.title }}" data-price="{{ product.price }}" data-image="{{ product.image_url }}">Add to bag</button>
+        {% endif %}
+        <button class="btn btn-outline" type="button" data-share data-url="{{ product.public_url }}" data-title="{{ product.title }}">Copy link</button>
+      </div>
+      <div class="delivery-note">
+        <strong>Delivery</strong>
+        <p>Contact the seller to agree on delivery details before purchase.</p>
+      </div>
+    </div>
+
+    <section class="product-description" aria-labelledby="description-heading">
+      <h2 id="description-heading">Product details</h2>
+      <p class="detail-desc">{{ product.description or 'No description provided.' }}</p>
+    </section>
+
+    <section class="seller-card" aria-label="Seller information">
+      <p class="seller-card-label">Seller</p>
+      <strong>{{ product.seller.name }}</strong>
+      <p class="seller-line">Listed {{ product.created_at.strftime('%b %d, %Y') }}</p>
     {% if product.seller.show_phone and product.seller.phone %}
       {% set digits = product.seller.phone|replace('+','')|replace(' ','')|replace('-','') %}
       {% set wa_text = "Hi, I'm interested in " ~ product.title ~ " " ~ product.public_url %}
@@ -26,16 +62,7 @@
         <a class="link" href="https://wa.me/{{ digits }}?text={{ wa_text|urlencode }}" target="_blank" rel="noopener">WhatsApp</a>
       </p>
     {% endif %}
-
-    <div class="detail-actions">
-      {% if product.is_sold %}
-        <span class="status-pill status-sold">This item has been sold</span>
-      {% else %}
-        <button class="btn" type="button" data-add
-                data-id="{{ product.id }}" data-name="{{ product.title }}" data-price="{{ product.price }}" data-image="{{ product.image_url }}">Add to bag</button>
-      {% endif %}
-      <button class="btn btn-outline" type="button" data-share data-url="{{ product.public_url }}" data-title="{{ product.title }}">Copy link</button>
-    </div>
+    </section>
     <div class="share-box">
       <input type="text" readonly value="{{ product.public_url }}" aria-label="Shareable link" data-share-input onclick="this.select()" />
     </div>

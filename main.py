@@ -32,6 +32,11 @@ def browse():
                            categories=CATEGORIES, show_sold=show_sold)
 
 
+@bp.route("/cart")
+def cart():
+    return render_template("cart.html")
+
+
 @bp.route("/p/<slug>")
 def product_detail(slug):
     product = Product.query.filter_by(slug=slug).first_or_404()
