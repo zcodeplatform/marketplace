@@ -1,0 +1,7 @@
+{% from "_card.html" import product_card %}
+<p class="results-count">{{ products|length }} {{ 'piece' if products|length == 1 else 'pieces' }} found</p>
+{% if products %}
+  <ul class="grid">{% for p in products %}{{ product_card(p) }}{% endfor %}</ul>
+{% else %}
+  <p class="empty-note">No products match your search.</p>
+{% endif %}

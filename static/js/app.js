@@ -140,3 +140,58 @@ document.querySelectorAll("[data-share]").forEach((btn) => {
 });
 
 paintCount();
+
+const liveSearch = document.querySelector("[data-live-search]");
+const productResults = document.querySelector("#product-results");
+
+if (liveSearch && productResults) {
+  let searchTimer;
+  let searchRequest;
+
+  const refreshResults = async () => {
+    searchRequest?.abort();
+    const controller = new AbortController();
+    searchRequest = controller;
+    const params = new URLSearchParams(new FormData(liveSearch));
+    for (const [key, value] of params) {
+      if (!value) params.delete(key);
+    }
+    const visibleParams = new URLSearchParams(params);
+    const url = new URL(liveSearch.action || window.location.pathname, window.location.origin);
+    params.set("_partial", "1");
+    url.search = params.toString();
+    productResults.setAttribute("aria-busy", "true");
+
+    try {
+      const response = await fetch(url, {
+        headers: { "X-Requested-With": "XMLHttpRequest" },
+        signal: controller.signal,
+      });
+      if (!response.ok) throw new Error("Search request failed");
+      const markup = await response.text();
+      const fragment = document.createElement("template");
+      fragment.innerHTML = markup;
+      productResults.replaceChildren(fragment.content.cloneNode(true));
+      history.replaceState(null, "", `${url.pathname}${visibleParams.size ? `?${visibleParams}` : ""}`);
+    } catch (error) {
+      if (error.name !== "AbortError") liveSearch.submit();
+    } finally {
+      if (!controller.signal.aborted) productResults.setAttribute("aria-busy", "false");
+    }
+  };
+
+  liveSearch.addEventListener("input", (event) => {
+    if (event.target.matches('input[type="search"]')) {
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(refreshResults, 250);
+    }
+  });
+  liveSearch.addEventListener("change", (event) => {
+    if (event.target.matches("select, input[type=checkbox]")) refreshResults();
+  });
+  liveSearch.addEventListener("submit", (event) => {
+    event.preventDefault();
+    clearTimeout(searchTimer);
+    refreshResults();
+  });
+}

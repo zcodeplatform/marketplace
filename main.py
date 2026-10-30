@@ -26,6 +26,8 @@ def browse():
         like = f"%{q}%"
         query = query.filter(Product.title.ilike(like) | Product.description.ilike(like))
     products = query.order_by(Product.created_at.desc()).all()
+    if request.args.get("_partial") == "1":
+        return render_template("_browse_results.html", products=products)
     return render_template("browse.html", products=products, q=q, category=category,
                            categories=CATEGORIES, show_sold=show_sold)
 
