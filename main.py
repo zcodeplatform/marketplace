@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import secrets
+from datetime import datetime, timezone
 from xml.etree import ElementTree
 
 from flask import Blueprint, Response, current_app, make_response, redirect, render_template, request, url_for
@@ -18,24 +19,36 @@ bp = Blueprint("main", __name__)
 
 @bp.get("/sitemap.xml")
 def sitemap():
+    today = datetime.now(timezone.utc).date().isoformat()
     products = Product.query.filter(
         Product.status == STATUS_ACTIVE,
         public_listing_filter(),
     ).order_by(Product.created_at.desc(), Product.id.desc()).all()
-    locations = [
-        url_for("main.index", _external=True),
-        url_for("main.browse", _external=True),
-        *(url_for("main.product_detail", slug=product.slug, _external=True) for product in products),
+    pages = [
+        (url_for("main.index", _external=True), today, "daily", "1.0"),
+        (url_for("main.browse", _external=True), today, "daily", "0.9"),
+        *(
+            (
+                url_for("main.product_detail", slug=product.slug, _external=True),
+                product.created_at.date().isoformat(),
+                "weekly",
+                "0.8",
+            )
+            for product in products
+        ),
     ]
 
     sitemap_namespace = "http://www.sitemaps.org/schemas/sitemap/0.9"
     root = ElementTree.Element("urlset", {"xmlns": sitemap_namespace})
-    for location in locations:
+    for location, last_modified, change_frequency, priority in pages:
         url_element = ElementTree.SubElement(root, "url")
         ElementTree.SubElement(url_element, "loc").text = location
+        ElementTree.SubElement(url_element, "lastmod").text = last_modified
+        ElementTree.SubElement(url_element, "changefreq").text = change_frequency
+        ElementTree.SubElement(url_element, "priority").text = priority
 
     xml = ElementTree.tostring(root, encoding="utf-8", xml_declaration=True)
-    return Response(xml, mimetype="application/xml")
+    return Response(xml, content_type="text/xml; charset=utf-8")
 
 
 @bp.route("/")

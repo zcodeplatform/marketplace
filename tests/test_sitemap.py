@@ -1,4 +1,5 @@
 import unittest
+from datetime import datetime, timezone
 from decimal import Decimal
 from xml.etree import ElementTree
 
@@ -63,13 +64,11 @@ class SitemapTests(unittest.TestCase):
         response = self.client.get("/sitemap.xml", headers={"Host": "market.example.test"})
 
         self.assertEqual(response.status_code, 200)
-        self.assertTrue(response.mimetype == "application/xml")
+        self.assertEqual(response.mimetype, "text/xml")
         root = ElementTree.fromstring(response.data)
         namespace = {"sm": "http://www.sitemaps.org/schemas/sitemap/0.9"}
-        locations = [
-            element.text
-            for element in root.findall("sm:url/sm:loc", namespace)
-        ]
+        url_elements = root.findall("sm:url", namespace)
+        locations = [element.findtext("sm:loc", namespaces=namespace) for element in url_elements]
         self.assertIn("http://market.example.test/", locations)
         self.assertIn("http://market.example.test/browse", locations)
         self.assertEqual(
@@ -86,6 +85,40 @@ class SitemapTests(unittest.TestCase):
         )
         for product in visible_products:
             self.assertIn(f"http://market.example.test/p/{product.slug}", locations)
+            product_url = next(
+                element for element in url_elements
+                if element.findtext("sm:loc", namespaces=namespace)
+                == f"http://market.example.test/p/{product.slug}"
+            )
+            self.assertEqual(
+                product_url.findtext("sm:lastmod", namespaces=namespace),
+                product.created_at.date().isoformat(),
+            )
+            self.assertEqual(
+                product_url.findtext("sm:changefreq", namespaces=namespace),
+                "weekly",
+            )
+            self.assertEqual(
+                product_url.findtext("sm:priority", namespaces=namespace),
+                "0.8",
+            )
+
+        static_page = next(
+            element for element in url_elements
+            if element.findtext("sm:loc", namespaces=namespace) == "http://market.example.test/"
+        )
+        self.assertEqual(
+            static_page.findtext("sm:lastmod", namespaces=namespace),
+            datetime.now(timezone.utc).date().isoformat(),
+        )
+        self.assertEqual(
+            static_page.findtext("sm:changefreq", namespaces=namespace),
+            "daily",
+        )
+        self.assertEqual(
+            static_page.findtext("sm:priority", namespaces=namespace),
+            "1.0",
+        )
 
     def test_google_site_verification_endpoint_returns_verification_file(self):
         response = self.client.get("/google1fc7af632ee3cc17.html")
