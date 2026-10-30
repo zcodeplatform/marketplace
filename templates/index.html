@@ -2,34 +2,44 @@
 {% from "_card.html" import product_card %}
 {% block title %}Home{% endblock %}
 {% block content %}
-<section class="wrap center hero">
-  <p class="kicker">Wonderful products from/to comrade</p>
-  <h1>comrade products 4 comrades</h1>
-  <p class="lede">A small collection of comrade affordable products, everything is centered, considered, and ready to take home.</p>
-  <a class="btn" href="{{ url_for('seller.new') }}">Start Selling</a>
+<section class="store-hero">
+  <img class="store-hero-image" src="{{ url_for('static', filename='img/hero.jpg') }}" alt="Ceramics and folded linen displayed in a sunlit room" />
+  <div class="wrap store-hero-content">
+    <p class="kicker">Objects for everyday living</p>
+    <h1>Find something<br />worth keeping.</h1>
+    <p class="store-hero-copy">A thoughtful edit of useful pieces for home, table, and beyond.</p>
+    <form class="hero-search" method="get" action="{{ url_for('main.browse') }}" role="search">
+      <input type="search" name="q" placeholder="What are you looking for?" aria-label="Search products" />
+      <button class="btn" type="submit">Search</button>
+    </form>
+    <a class="store-sell-link" href="{{ url_for('seller.new') }}">Have something to sell? <span>Start here</span></a>
+  </div>
 </section>
-<section class="wrap hero-photo">
-  <img src="{{ url_for('static', filename='img/hero.jpg') }}" alt="A quiet room with ceramics and linen" />
-</section>
-<section id="shop" class="wrap center">
-  <h2>Latest in the shop</h2>
-  <p class="sub">Tap add and the bag opens on the right.</p>
+<nav class="wrap category-rail" aria-label="Shop by category">
+  <span class="category-label">Shop by</span>
+  {% for category in categories %}
+    <a class="category-link" href="{{ url_for('main.browse', category=category) }}">{{ category }}</a>
+  {% endfor %}
+</nav>
+<section id="shop" class="wrap store-shop">
+  <div class="shop-heading">
+    <div>
+      <p class="kicker">Just added</p>
+      <h2>New arrivals</h2>
+    </div>
+    <a class="shop-all-link" href="{{ url_for('main.browse') }}">Shop all <span aria-hidden="true">→</span></a>
+  </div>
   {% if products %}
-    <ul class="grid">{% for p in products %}{{ product_card(p) }}{% endfor %}</ul>
-    <a class="btn btn-outline" href="{{ url_for('main.browse') }}">Browse everything</a>
+    <ul class="grid store-grid">{% for p in products %}{{ product_card(p) }}{% endfor %}</ul>
   {% else %}
-    <p class="sub">Nothing listed yet. Be the first to <a class="link" href="{{ url_for('seller.new') }}">sell something</a>.</p>
+    <p class="empty-note">Nothing listed yet. Be the first to <a class="link" href="{{ url_for('seller.new') }}">sell something</a>.</p>
   {% endif %}
 </section>
 <section id="story">
   <div class="inner center">
+    <p class="kicker">A little less, a little better</p>
     <h2>Made to sit still</h2>
-    <p>marketplace stocks fewer things on purpose. We look for weight, honest materials, and forms that stay useful after the season ends.</p>
+    <p>Find useful pieces from independent sellers, chosen for honest materials and forms that stay useful after the season ends.</p>
   </div>
-</section>
-<section id="visit" class="center">
-  <h2>Disclaimer</h2>
-  <p>Note that almost every business carried out in this platform you and your seller are responsible for your purchases</p>
-  <p class="sub">Free shipping over depends on the agreement with seller.</p>
 </section>
 {% endblock %}

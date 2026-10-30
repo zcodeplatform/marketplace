@@ -8,7 +8,7 @@ bp = Blueprint("main", __name__)
 @bp.route("/")
 def index():
     latest = Product.query.filter_by(status=STATUS_ACTIVE).order_by(Product.created_at.desc()).limit(6).all()
-    return render_template("index.html", products=latest)
+    return render_template("index.html", products=latest, categories=CATEGORIES)
 
 
 @bp.route("/browse")
