@@ -617,18 +617,14 @@ footer {
   font-size: 0.85rem;
   color: var(--muted);
 }
-.auth-card input[type="text"],
-.auth-card input[type="email"],
-.auth-card input[type="password"],
-.auth-card input[type="number"],
-.auth-card input[type="file"],
-.auth-card select,
-.auth-card textarea,
-.filters input[type="search"],
-.filters select,
+form input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]),
+form select,
+form textarea,
 .share-box input {
   display: block;
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   margin-top: 0.3rem;
   padding: 0.65rem 0.85rem;
   border: 1px solid var(--line);
@@ -637,13 +633,22 @@ footer {
   color: var(--ink);
   font: inherit;
 }
-.auth-card input:focus,
-.auth-card select:focus,
-.auth-card textarea:focus,
-.filters input:focus,
-.filters select:focus {
+form textarea {
+  min-height: 5rem;
+  max-height: 9rem;
+  resize: vertical;
+}
+form input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):focus-visible,
+form select:focus-visible,
+form textarea:focus-visible,
+.share-box input:focus-visible {
   outline: 2px solid var(--primary);
   outline-offset: 1px;
+}
+form input:disabled {
+  background: color-mix(in srgb, var(--line) 35%, var(--surface));
+  color: var(--muted);
+  cursor: not-allowed;
 }
 .auth-card small {
   display: block;
@@ -665,7 +670,10 @@ footer {
 .row {
   display: grid;
   gap: 0 1rem;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+}
+.row label {
+  min-width: 0;
 }
 @media (max-width: 600px) {
   .row {
