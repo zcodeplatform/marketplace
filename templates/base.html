@@ -37,20 +37,20 @@
         {% endif %}
       </nav>
 
-      <button class="icon-btn cart-btn" type="button" aria-label="Open cart" data-open-cart>
+      <button class="icon-btn cart-btn" type="button" aria-label="Open cart" aria-controls="cart-drawer" aria-expanded="false" data-open-cart>
         <svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 7h15l-1.5 9h-12z"/><path d="M6 7 5 4H2"/><circle cx="9" cy="20" r="1"/><circle cx="18" cy="20" r="1"/></svg>
         <span class="badge hidden" data-count>0</span>
       </button>
-      <button class="icon-btn menu-btn" type="button" aria-label="Open menu" data-open-menu>
+      <button class="icon-btn menu-btn" type="button" aria-label="Open menu" aria-controls="mobile-navigation" aria-expanded="false" data-open-menu>
         <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
       </button>
     </div>
   </header>
 
   <!-- Mobile menu drawer -->
-  <div class="overlay hidden" data-menu>
+  <div class="overlay hidden" data-menu aria-hidden="true">
     <button class="scrim" type="button" aria-label="Close menu" data-close-menu></button>
-    <aside class="drawer menu" aria-label="Mobile navigation">
+    <aside class="drawer menu" id="mobile-navigation" role="dialog" aria-modal="true" aria-label="Mobile navigation">
       <div class="drawer-head">
         <a class="menu-brand" href="{{ url_for('main.index') }}">
           <img src="{{ url_for('static', filename='img/logo.webp') }}" alt="" />
@@ -85,14 +85,20 @@
   </div>
 
   <!-- Cart drawer -->
-  <div class="overlay hidden" data-cart>
+  <div class="overlay hidden" data-cart aria-hidden="true">
     <button class="scrim" type="button" aria-label="Close cart" data-close-cart></button>
-    <aside class="drawer cart">
-      <div class="drawer-head">
-        <h2>Cart</h2>
+    <aside class="drawer cart" id="cart-drawer" role="dialog" aria-modal="true" aria-labelledby="cart-drawer-title">
+      <div class="drawer-head cart-drawer-head">
+        <a class="cart-brand" href="{{ url_for('main.index') }}">
+          <img src="{{ url_for('static', filename='img/logo.webp') }}" alt="" />
+          <span><strong>marketplace</strong><small id="cart-drawer-title">Your shopping bag</small></span>
+        </a>
+        <div class="cart-head-actions">
+          <span class="cart-item-count" data-cart-label>0 items</span>
         <button class="icon-btn" type="button" aria-label="Close cart" data-close-cart>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg>
         </button>
+        </div>
       </div>
       <div data-cart-body></div>
     </aside>

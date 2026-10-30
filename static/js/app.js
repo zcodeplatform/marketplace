@@ -47,18 +47,43 @@ function setQty(id, qty) {
 
 const menu = document.querySelector("[data-menu]");
 const cart = document.querySelector("[data-cart]");
+const menuTrigger = document.querySelector("[data-open-menu]");
+const cartTrigger = document.querySelector("[data-open-cart]");
+const drawerMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
 
 function lock() {
   document.body.style.overflow =
     !menu.classList.contains("hidden") || !cart.classList.contains("hidden") ? "hidden" : "";
 }
-function openMenu() { menu.classList.remove("hidden"); lock(); }
-function closeMenu() { menu.classList.add("hidden"); lock(); }
-function openCart() { cart.classList.remove("hidden"); paintCart(); lock(); }
-function closeCart() { cart.classList.add("hidden"); lock(); }
+function showDrawer(overlay, trigger) {
+  overlay.classList.remove("hidden");
+  overlay.setAttribute("aria-hidden", "false");
+  trigger.setAttribute("aria-expanded", "true");
+  requestAnimationFrame(() => overlay.classList.add("is-open"));
+  lock();
+  overlay.querySelector(".drawer-head [data-close-menu], .drawer-head [data-close-cart]")?.focus();
+}
+function hideDrawer(overlay, trigger) {
+  if (overlay.classList.contains("hidden")) return;
+  overlay.classList.remove("is-open");
+  overlay.setAttribute("aria-hidden", "true");
+  trigger.setAttribute("aria-expanded", "false");
+  const finishClose = () => {
+    if (overlay.classList.contains("is-open")) return;
+    overlay.classList.add("hidden");
+    lock();
+    trigger.focus();
+  };
+  if (drawerMotion.matches) finishClose();
+  else window.setTimeout(finishClose, 280);
+}
+function openMenu() { showDrawer(menu, menuTrigger); }
+function closeMenu() { hideDrawer(menu, menuTrigger); }
+function openCart() { paintCart(); showDrawer(cart, cartTrigger); }
+function closeCart() { hideDrawer(cart, cartTrigger); }
 
-document.querySelector("[data-open-menu]").onclick = openMenu;
-document.querySelector("[data-open-cart]").onclick = openCart;
+menuTrigger.onclick = openMenu;
+cartTrigger.onclick = openCart;
 document.querySelectorAll("[data-close-menu]").forEach((el) => (el.onclick = closeMenu));
 document.querySelectorAll("[data-close-cart]").forEach((el) => (el.onclick = closeCart));
 document.addEventListener("keydown", (e) => {
@@ -67,9 +92,11 @@ document.addEventListener("keydown", (e) => {
 
 function paintCount() {
   const badge = document.querySelector("[data-count]");
+  const label = document.querySelector("[data-cart-label]");
   const n = count();
   badge.textContent = String(n);
   badge.classList.toggle("hidden", n === 0);
+  if (label) label.textContent = `${n} ${n === 1 ? "item" : "items"}`;
 }
 
 function paintCart() {
@@ -77,13 +104,24 @@ function paintCart() {
   const lines = state.lines;
 
   if (!lines.length && !state.done) {
-    body.innerHTML = `<div class="empty"><p>Nothing here yet</p><span>Add a piece from the shop. It stays in this browser.</span><button class="ink-btn" type="button" data-close-cart>Continue browsing</button></div>`;
+    body.innerHTML = `<div class="empty">
+      <span class="empty-bag-icon" aria-hidden="true"><svg viewBox="0 0 48 48" fill="none"><path d="M10 17h28l2 25H8l2-25Z" stroke="currentColor" stroke-width="1.7"/><path d="M17 19v-5a7 7 0 0 1 14 0v5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span>
+      <p>Your bag is taking a breather.</p>
+      <span>Find something useful, beautiful, or both. Your picks will stay here while you browse.</span>
+      <a class="btn" href="${esc(document.body.dataset.browseUrl)}">Explore the shop</a>
+      <button class="cart-continue" type="button" data-close-cart>Continue browsing</button>
+    </div>`;
     body.querySelector("[data-close-cart]").onclick = closeCart;
     return;
   }
   if (state.done) {
-    body.innerHTML = `<div class="done"><p>Order noted</p><span>This is a demo checkout — nothing was charged. Your bag is clear.</span><button class="btn" type="button" data-back>Back to the shop</button></div>`;
-    body.querySelector("[data-back]").onclick = () => { state.done = false; closeCart(); };
+    body.innerHTML = `<div class="done">
+      <span class="done-mark" aria-hidden="true">✓</span>
+      <p>All set</p>
+      <span>This is a demo checkout. Nothing was charged, and your bag is clear.</span>
+      <a class="btn" href="${esc(document.body.dataset.browseUrl)}" data-back>Back to the shop</a>
+    </div>`;
+    body.querySelector("[data-back]").onclick = () => { state.done = false; };
     return;
   }
   const total = lines.reduce((n, l) => n + l.price * l.qty, 0);
@@ -92,12 +130,12 @@ function paintCart() {
       ${lines.map((l) => `<li class="line">
         <img src="${esc(l.image)}" alt="" />
         <div class="line-info">
-          <div class="line-top"><p>${esc(l.name)}</p><button type="button" aria-label="Remove" data-remove="${esc(l.id)}">×</button></div>
+          <div class="line-top"><p>${esc(l.name)}</p><button class="remove-line" type="button" aria-label="Remove ${esc(l.name)}" data-remove="${esc(l.id)}">Remove</button></div>
           <p class="muted">${money(l.price)} each</p>
           <div class="qty">
-            <button type="button" aria-label="Decrease" data-dec="${esc(l.id)}">−</button>
-            <span>${l.qty}</span>
-            <button type="button" aria-label="Increase" data-inc="${esc(l.id)}">+</button>
+            <button type="button" aria-label="Decrease quantity of ${esc(l.name)}" data-dec="${esc(l.id)}">−</button>
+            <span aria-live="polite">${l.qty}</span>
+            <button type="button" aria-label="Increase quantity of ${esc(l.name)}" data-inc="${esc(l.id)}">+</button>
           </div>
           <p class="line-total">${money(l.price * l.qty)}</p>
         </div>
@@ -106,7 +144,7 @@ function paintCart() {
     <div class="checkout">
       <p class="delivery-caption">Delivery details are agreed with each seller.</p>
       <div class="subtotal"><span class="muted">Subtotal</span><strong>${money(total)}</strong></div>
-      <a class="cart-full-link" href="${esc(document.body.dataset.cartUrl)}">Review full cart</a>
+      <a class="cart-full-link" href="${esc(document.body.dataset.cartUrl)}">View full cart</a>
       <button class="btn" type="button" data-checkout>Checkout (demo)</button>
     </div>`;
   const qtyOf = (id) => state.lines.find((l) => l.id === id).qty;
@@ -121,11 +159,22 @@ function paintCartPage() {
   if (!page) return;
 
   if (!state.lines.length && !state.done) {
-    page.innerHTML = `<div class="cart-empty"><p>Your cart is empty.</p><a class="btn" href="${esc(document.body.dataset.browseUrl)}">Browse products</a></div>`;
+    page.innerHTML = `<div class="cart-empty">
+      <span class="cart-empty-icon" aria-hidden="true"><svg viewBox="0 0 48 48" fill="none"><path d="M10 17h28l2 25H8l2-25Z" stroke="currentColor" stroke-width="1.7"/><path d="M17 19v-5a7 7 0 0 1 14 0v5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span>
+      <p class="cart-empty-title">Your cart is empty</p>
+      <p class="cart-empty-copy">Take a look around and add something you love. Your items will be waiting here.</p>
+      <a class="btn" href="${esc(document.body.dataset.browseUrl)}">Browse products</a>
+      <a class="cart-empty-secondary" href="/">Back to marketplace</a>
+    </div>`;
     return;
   }
   if (state.done) {
-    page.innerHTML = `<div class="cart-empty"><p>Demo checkout complete. No payment was taken.</p><a class="btn" href="${esc(document.body.dataset.browseUrl)}">Continue shopping</a></div>`;
+    page.innerHTML = `<div class="cart-empty">
+      <span class="done-mark" aria-hidden="true">✓</span>
+      <p class="cart-empty-title">Demo checkout complete</p>
+      <p class="cart-empty-copy">No payment was taken. Your cart is clear.</p>
+      <a class="btn" href="${esc(document.body.dataset.browseUrl)}">Continue shopping</a>
+    </div>`;
     return;
   }
 
