@@ -5,7 +5,7 @@ from flask_login import current_user, login_required
 
 from extensions import db
 from models import CATEGORIES, MAX_SELLER_PRODUCTS, STATUS_ACTIVE, STATUS_SOLD, Product
-from utils import allowed_image, delete_image, save_image
+from utils import ImageStorageError, ImageUploadError, allowed_image, delete_image, save_image
 
 bp = Blueprint("seller", __name__)
 
@@ -58,7 +58,16 @@ def new():
         image = values.pop("image")
         product = Product(**values, slug=Product.make_slug(values["title"]), seller_id=current_user.id)
         if image:
-            product.image_path = save_image(image)
+            try:
+                product.image_path = save_image(image)
+            except ImageUploadError as error:
+                flash(str(error), "error")
+                return render_template("products/form.html", product=None, form=request.form,
+                                       categories=CATEGORIES), 400
+            except ImageStorageError as error:
+                flash(str(error), "error")
+                return render_template("products/form.html", product=None, form=request.form,
+                                       categories=CATEGORIES), 503
         db.session.add(product)
         db.session.commit()
         flash("Your product is live! Share the link below.", "success")
@@ -77,12 +86,29 @@ def edit(product_id):
             return render_template("products/form.html", product=product, form=request.form,
                                    categories=CATEGORIES), 400
         image = values.pop("image")
+        new_image_path = product.image_path
+        if image:
+            try:
+                new_image_path = save_image(image)
+            except ImageUploadError as error:
+                flash(str(error), "error")
+                return render_template("products/form.html", product=product, form=request.form,
+                                       categories=CATEGORIES), 400
+            except ImageStorageError as error:
+                flash(str(error), "error")
+                return render_template("products/form.html", product=product, form=request.form,
+                                       categories=CATEGORIES), 503
+        old_image_path = product.image_path
         for key, val in values.items():
             setattr(product, key, val)  # slug is intentionally left unchanged
-        if image:
-            delete_image(product.image_path)
-            product.image_path = save_image(image)
+        product.image_path = new_image_path
         db.session.commit()
+        if old_image_path != new_image_path:
+            try:
+                delete_image(old_image_path)
+            except ImageStorageError as error:
+                current_app.logger.error("Product updated but old image cleanup failed: %s", error)
+                flash("Product updated, but its previous image could not be removed from storage.", "error")
         flash("Product updated.", "success")
         return redirect(url_for("main.product_detail", slug=product.slug))
     return render_template("products/form.html", product=product, form={}, categories=CATEGORIES)
@@ -102,8 +128,13 @@ def toggle_status(product_id):
 @login_required
 def delete(product_id):
     product = _own_product_or_404(product_id)
-    delete_image(product.image_path)
+    image_path = product.image_path
     db.session.delete(product)
     db.session.commit()
+    try:
+        delete_image(image_path)
+    except ImageStorageError as error:
+        current_app.logger.error("Product deleted but image cleanup failed: %s", error)
+        flash("Product deleted, but its image could not be removed from storage.", "error")
     flash("Product deleted.", "info")
     return redirect(url_for("profile.view"))

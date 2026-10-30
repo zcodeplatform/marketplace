@@ -3,7 +3,7 @@
 {% block head %}
   <meta property="og:title" content="{{ product.title }} · {{ product.price|money }}" />
   <meta property="og:description" content="{{ product.description|truncate(150) }}" />
-  <meta property="og:image" content="{{ url_for('static', filename=product.image_path or 'img/placeholder.svg', _external=True) }}" />
+  <meta property="og:image" content="{{ product.image_external_url }}" />
   <link rel="canonical" href="{{ product.public_url }}" />
 {% endblock %}
 {% block content %}

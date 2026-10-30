@@ -29,9 +29,18 @@ The callback must be reachable by Safaricom; `localhost` and `127.0.0.1` are not
 
 Seller profiles show the seller’s per-checkout gross sales amount and item snapshot, with pending, successful, failed, and canceled statuses. This is transaction history, not a seller payout ledger. Seller history is tracked for checkouts created after the seller-payment records were added.
 
+## Image storage setup
+Image uploads are decoded and re-encoded as WebP (quality 80) before storage. To store them in Cloudflare R2:
+1. Create an R2 bucket and an R2 API token with object read/write permissions for that bucket.
+2. Set `IMAGE_STORAGE_BACKEND=r2`, `CLOUDFLARE_R2_ACCOUNT_ID`, `CLOUDFLARE_R2_ACCESS_KEY_ID`, `CLOUDFLARE_R2_SECRET_ACCESS_KEY`, and `CLOUDFLARE_R2_BUCKET` in `.env`.
+3. Enable public access for the bucket with an `r2.dev` URL or attach a custom domain, then set `CLOUDFLARE_R2_PUBLIC_URL` to that public base URL (no trailing slash).
+4. Restart Flask. New product and profile images will be uploaded as `.webp` objects. Existing local uploads continue to use their existing URLs.
+
+R2 is the default storage backend. Set `IMAGE_STORAGE_BACKEND=local` to keep uploads on disk during development. If R2 is selected but not configured, image uploads fail with a visible configuration error rather than silently saving locally. Do not commit R2 credentials.
+
 ## Layout
 - `app.py` app factory, CLI seed command · `config.py` · `extensions.py` · `models.py` · `utils.py`
 - `auth.py` signup/login/logout + Google · `main.py` home/browse/public product pages · `payments.py` M-Pesa checkout/callback/status
-- `mpesa.py` Daraja OAuth token and STK Push requests
+- `mpesa.py` Daraja OAuth token and STK Push requests · `utils.py` image processing and local/R2 storage
 - `seller.py` create/edit/delete/mark-sold (all `@login_required`, owner-only) · `account.py` profile
 - `templates/`, `static/css/styles.css` (your original styles + additions), `static/js/app.js` (your cart + share button)

@@ -1,7 +1,8 @@
 import re
 from datetime import datetime, timezone
+from urllib.parse import quote
 
-from flask import url_for
+from flask import current_app, url_for
 from flask_login import UserMixin
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -23,6 +24,15 @@ STATUS_SOLD = "sold"
 MAX_SELLER_PRODUCTS = 5
 
 
+def _image_url(path, fallback):
+    if path and path.startswith("r2:"):
+        public_url = current_app.config.get("CLOUDFLARE_R2_PUBLIC_URL", "").rstrip("/")
+        if not public_url:
+            raise RuntimeError("CLOUDFLARE_R2_PUBLIC_URL must be configured to display R2 images.")
+        return f"{public_url}/{quote(path[3:], safe='/')}"
+    return url_for("static", filename=path or fallback)
+
+
 def _now():
     return datetime.now(timezone.utc)
 
@@ -37,7 +47,7 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(255), nullable=True)
     google_id = db.Column(db.String(64), unique=True, nullable=True, index=True)
     picture_url = db.Column(db.String(500), nullable=True)     # from Google
-    avatar_path = db.Column(db.String(255), nullable=True)     # user upload, relative to /static
+    avatar_path = db.Column(db.String(255), nullable=True)     # local path or r2:<object key>
     bio = db.Column(db.String(500), nullable=True)
     phone = db.Column(db.String(20), nullable=True)
     show_phone = db.Column(db.Boolean, nullable=False, default=False)  # show on product pages
@@ -61,7 +71,7 @@ class User(UserMixin, db.Model):
     def avatar_url(self):
         """Uploaded avatar wins, then the Google picture, otherwise None."""
         if self.avatar_path:
-            return url_for("static", filename=self.avatar_path)
+            return _image_url(self.avatar_path, "img/placeholder.svg")
         return self.picture_url or None
 
     @property
@@ -83,7 +93,7 @@ class Product(db.Model):
     title = db.Column(db.String(150), nullable=False)
     description = db.Column(db.Text, nullable=False, default="")
     price = db.Column(db.Numeric(10, 2), nullable=False)
-    image_path = db.Column(db.String(255), nullable=True)  # relative to /static
+    image_path = db.Column(db.String(255), nullable=True)  # local path or r2:<object key>
     category = db.Column(db.String(50), nullable=False, default="Other", index=True)
     status = db.Column(db.String(10), nullable=False, default=STATUS_ACTIVE, index=True)
     created_at = db.Column(db.DateTime, default=_now, nullable=False)
@@ -95,7 +105,13 @@ class Product(db.Model):
 
     @property
     def image_url(self):
-        return url_for("static", filename=self.image_path or "img/placeholder.svg")
+        return _image_url(self.image_path, "img/placeholder.svg")
+
+    @property
+    def image_external_url(self):
+        if self.image_path and self.image_path.startswith("r2:"):
+            return self.image_url
+        return url_for("static", filename=self.image_path or "img/placeholder.svg", _external=True)
 
     @property
     def public_url(self):

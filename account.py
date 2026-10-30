@@ -1,12 +1,12 @@
 import json
 import re
 
-from flask import Blueprint, flash, redirect, render_template, request, url_for
+from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
 from extensions import db
 from models import MAX_SELLER_PRODUCTS, Payment, PaymentSeller
-from utils import allowed_image, delete_image, save_image
+from utils import ImageStorageError, ImageUploadError, allowed_image, delete_image, save_image
 
 bp = Blueprint("profile", __name__)
 
@@ -55,16 +55,31 @@ def edit():
             flash(error, "error")
             return render_template("profile/edit.html"), 400
 
+        old_avatar_path = current_user.avatar_path
+        new_avatar_path = old_avatar_path
+        if request.form.get("remove_avatar"):
+            new_avatar_path = None
+        if avatar and avatar.filename:
+            try:
+                new_avatar_path = save_image(avatar)
+            except ImageUploadError as error:
+                flash(str(error), "error")
+                return render_template("profile/edit.html"), 400
+            except ImageStorageError as error:
+                flash(str(error), "error")
+                return render_template("profile/edit.html"), 503
+
         current_user.name, current_user.bio = name, bio or None
         current_user.phone = phone or None
         current_user.show_phone = bool(phone) and bool(request.form.get("show_phone"))
-        if request.form.get("remove_avatar"):
-            delete_image(current_user.avatar_path)
-            current_user.avatar_path = None
-        if avatar and avatar.filename:
-            delete_image(current_user.avatar_path)
-            current_user.avatar_path = save_image(avatar)
+        current_user.avatar_path = new_avatar_path
         db.session.commit()
+        if old_avatar_path != new_avatar_path:
+            try:
+                delete_image(old_avatar_path)
+            except ImageStorageError as error:
+                current_app.logger.error("Profile updated but old avatar cleanup failed: %s", error)
+                flash("Profile updated, but the previous picture could not be removed from storage.", "error")
         flash("Profile updated.", "success")
         return redirect(url_for("profile.view"))
     return render_template("profile/edit.html")
