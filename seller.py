@@ -4,7 +4,14 @@ from flask import Blueprint, abort, flash, redirect, render_template, request, u
 from flask_login import current_user, login_required
 
 from extensions import db
-from models import CATEGORIES, MAX_SELLER_PRODUCTS, STATUS_ACTIVE, STATUS_SOLD, Product
+from models import (
+    CATEGORIES,
+    MAX_SELLER_PRODUCTS,
+    STATUS_ACTIVE,
+    STATUS_SOLD,
+    Product,
+    active_listing_plan,
+)
 from utils import ImageStorageError, ImageUploadError, allowed_image, delete_image, save_image
 
 bp = Blueprint("seller", __name__)
@@ -46,8 +53,15 @@ def _parse_form(form, files):
 @bp.route("/sell", methods=["GET", "POST"])
 @login_required
 def new():
-    if current_user.products.count() >= MAX_SELLER_PRODUCTS:
-        flash(f"You can list up to {MAX_SELLER_PRODUCTS} products. Remove a listing before adding another.", "error")
+    if (
+        current_user.products.count() >= MAX_SELLER_PRODUCTS
+        and active_listing_plan(current_user.id) is None
+    ):
+        flash(
+            f"You can list up to {MAX_SELLER_PRODUCTS} products for free. "
+            "Renew your listing plan for unlimited listings or remove a listing.",
+            "error",
+        )
         return redirect(url_for("profile.view"))
     if request.method == "POST":
         values, error = _parse_form(request.form, request.files)

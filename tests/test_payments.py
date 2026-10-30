@@ -2,12 +2,23 @@ import html
 import json
 import re
 import unittest
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from unittest.mock import Mock, patch
 
 from app import _migrate_product_categories, create_app
 from extensions import db
-from models import CATEGORIES, MAX_SELLER_PRODUCTS, Payment, PaymentSeller, Product, User
+from models import (
+    CATEGORIES,
+    LISTING_PLAN_DAYS,
+    LISTING_PLAN_PRICE,
+    MAX_SELLER_PRODUCTS,
+    ListingPlanPayment,
+    Payment,
+    PaymentSeller,
+    Product,
+    User,
+)
 from mpesa import stk_push, stk_query
 
 
@@ -206,6 +217,192 @@ class PaymentCheckoutTests(unittest.TestCase):
         page = html.unescape(post_response.get_data(as_text=True))
         self.assertIn("Product limit reached", page)
         self.assertIn(f"{MAX_SELLER_PRODUCTS}/{MAX_SELLER_PRODUCTS}", page)
+
+    @patch("payments.stk_push")
+    def test_listing_plan_requests_fixed_price_and_callback_activates_it(self, push):
+        with self.client.session_transaction() as session:
+            session["_user_id"] = str(self.seller.id)
+            session["_fresh"] = True
+        token = self._csrf_token()
+        push.return_value = {
+            "ResponseCode": "0",
+            "CheckoutRequestID": "ws_CO_listing_plan",
+            "MerchantRequestID": "merchant_listing_plan",
+        }
+
+        response = self.client.post(
+            "/seller/listing-plan/stk",
+            data={"csrf_token": token, "phone": "0712345678"},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        payment = ListingPlanPayment.query.one()
+        self.assertEqual(payment.amount, LISTING_PLAN_PRICE)
+        self.assertEqual(payment.phone_number, "254712345678")
+        self.assertEqual(payment.status, "pending")
+        push.assert_called_once_with("254712345678", LISTING_PLAN_PRICE, payment.reference)
+
+        callback = {
+            "Body": {
+                "stkCallback": {
+                    "CheckoutRequestID": payment.checkout_request_id,
+                    "ResultCode": 0,
+                    "CallbackMetadata": {
+                        "Item": [{"Name": "Amount", "Value": LISTING_PLAN_PRICE}],
+                    },
+                },
+            },
+        }
+        callback_response = self.client.post("/mpesa/callback", json=callback)
+        self.assertEqual(callback_response.status_code, 200)
+        self.assertEqual(payment.status, "success")
+        self.assertEqual(payment.expires_at - payment.paid_at, timedelta(days=LISTING_PLAN_DAYS))
+
+        paid_at = payment.paid_at
+        self.client.post("/mpesa/callback", json=callback)
+        self.assertEqual(payment.paid_at, paid_at)
+
+    def test_listing_plan_callback_rejects_wrong_paid_amount(self):
+        payment = ListingPlanPayment(
+            seller_id=self.seller.id,
+            reference="PLBADAMOUNT",
+            checkout_request_id="ws_CO_bad_plan_amount",
+            phone_number="254712345678",
+            amount=LISTING_PLAN_PRICE,
+            status="pending",
+        )
+        db.session.add(payment)
+        db.session.commit()
+
+        response = self.client.post(
+            "/mpesa/callback",
+            json={
+                "Body": {
+                    "stkCallback": {
+                        "CheckoutRequestID": payment.checkout_request_id,
+                        "ResultCode": 0,
+                        "CallbackMetadata": {
+                            "Item": [{"Name": "Amount", "Value": LISTING_PLAN_PRICE - 1}],
+                        },
+                    },
+                },
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(payment.status, "failed")
+        self.assertIsNone(payment.expires_at)
+
+    @patch("payments.stk_query")
+    def test_seller_can_check_plan_payment_when_callback_is_delayed(self, query):
+        with self.client.session_transaction() as session:
+            session["_user_id"] = str(self.seller.id)
+            session["_fresh"] = True
+        payment = ListingPlanPayment(
+            seller_id=self.seller.id,
+            reference="PLQUERYTEST",
+            checkout_request_id="ws_CO_plan_query",
+            phone_number="254712345678",
+            amount=LISTING_PLAN_PRICE,
+            status="pending",
+        )
+        db.session.add(payment)
+        db.session.commit()
+        token = self._csrf_token()
+        query.return_value = {"ResultCode": "0"}
+
+        response = self.client.post(
+            f"/seller/listing-plan/{payment.id}/check",
+            data={"csrf_token": token},
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(payment.status, "success")
+        self.assertEqual(payment.expires_at - payment.paid_at, timedelta(days=LISTING_PLAN_DAYS))
+        query.assert_called_once_with(payment.checkout_request_id)
+
+    def test_expired_plan_hides_only_listings_beyond_the_free_five(self):
+        for index in range(MAX_SELLER_PRODUCTS):
+            db.session.add(Product(
+                slug=f"premium-item-{index}",
+                title=f"Premium item {index}",
+                description="",
+                price=Decimal("1.00"),
+                category="Other",
+                seller_id=self.seller.id,
+            ))
+        plan = ListingPlanPayment(
+            seller_id=self.seller.id,
+            reference="PLVISIBLE",
+            phone_number="254712345678",
+            amount=LISTING_PLAN_PRICE,
+            status="success",
+            paid_at=datetime.now(timezone.utc),
+            expires_at=datetime.now(timezone.utc) + timedelta(days=LISTING_PLAN_DAYS),
+        )
+        db.session.add(plan)
+        db.session.commit()
+
+        premium_response = self.client.get("/p/premium-item-4")
+        self.assertEqual(premium_response.status_code, 200)
+
+        plan.expires_at = datetime.now(timezone.utc) - timedelta(seconds=1)
+        db.session.commit()
+        hidden_response = self.client.get("/p/premium-item-4")
+        free_response = self.client.get("/p/test-item")
+        browse_response = self.client.get("/browse")
+        checkout_response = self._checkout(
+            expected_total="1.00",
+            items=[{"id": Product.query.filter_by(slug="premium-item-4").one().id, "qty": 1}],
+        )
+
+        self.assertEqual(hidden_response.status_code, 404)
+        self.assertEqual(free_response.status_code, 200)
+        self.assertNotIn(b"Premium item 4", browse_response.data)
+        self.assertEqual(checkout_response.status_code, 409)
+
+    def test_active_plan_allows_more_than_five_products(self):
+        for index in range(MAX_SELLER_PRODUCTS - 1):
+            db.session.add(Product(
+                slug=f"existing-extra-{index}",
+                title=f"Existing extra {index}",
+                description="",
+                price=Decimal("1.00"),
+                category="Other",
+                seller_id=self.seller.id,
+            ))
+        db.session.add(ListingPlanPayment(
+            seller_id=self.seller.id,
+            reference="PLACTIVEPLAN",
+            phone_number="254712345678",
+            amount=LISTING_PLAN_PRICE,
+            status="success",
+            paid_at=datetime.now(timezone.utc),
+            expires_at=datetime.now(timezone.utc) + timedelta(days=LISTING_PLAN_DAYS),
+        ))
+        db.session.commit()
+        with self.client.session_transaction() as session:
+            session["_user_id"] = str(self.seller.id)
+            session["_fresh"] = True
+        token = self._csrf_token()
+
+        response = self.client.post(
+            "/sell",
+            data={
+                "csrf_token": token,
+                "title": "Paid plan product",
+                "description": "Visible during the plan",
+                "price": "12.00",
+                "category": "Other",
+                "status": "active",
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(Product.query.filter_by(seller_id=self.seller.id).count(), MAX_SELLER_PRODUCTS + 1)
+        profile_response = self.client.get("/profile")
+        self.assertIn(b"Monthly listings", profile_response.data)
+        self.assertIn(b"Unlimited listings are visible until", profile_response.data)
 
     @patch("payments.stk_push")
     def test_changed_price_requires_review_before_push(self, push):

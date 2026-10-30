@@ -2,13 +2,24 @@ import json
 import re
 import secrets
 from collections import defaultdict
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 
-from flask import Blueprint, current_app, jsonify, request
+from flask import Blueprint, current_app, flash, jsonify, redirect, request, url_for
+from flask_login import current_user, login_required
 from sqlalchemy.exc import SQLAlchemyError
 
 from extensions import csrf, db
-from models import STATUS_ACTIVE, Payment, PaymentSeller, Product
+from models import (
+    LISTING_PLAN_DAYS,
+    LISTING_PLAN_PRICE,
+    STATUS_ACTIVE,
+    ListingPlanPayment,
+    Payment,
+    PaymentSeller,
+    Product,
+    public_listing_filter,
+)
 from mpesa import MpesaError, stk_push, stk_query
 
 bp = Blueprint("payments", __name__)
@@ -54,6 +65,7 @@ def _cart_snapshot(quantities):
     products = Product.query.filter(
         Product.id.in_(quantities),
         Product.status == STATUS_ACTIVE,
+        public_listing_filter(),
     ).all()
     if len(products) != len(quantities):
         return None, None, "One or more items are no longer available. Please update your cart."
@@ -171,6 +183,135 @@ def start_stk_push():
     ), 202
 
 
+@bp.post("/seller/listing-plan/stk")
+@login_required
+def start_listing_plan():
+    phone_number = _normalize_phone(request.form.get("phone"))
+    if not phone_number:
+        flash("Enter a valid Kenyan M-Pesa number, such as 0712345678.", "error")
+        return redirect(url_for("profile.view"))
+
+    reference = f"PL{secrets.token_hex(5).upper()}"
+    payment = ListingPlanPayment(
+        seller_id=current_user.id,
+        reference=reference,
+        phone_number=phone_number,
+        amount=LISTING_PLAN_PRICE,
+        status="pending",
+    )
+    db.session.add(payment)
+    try:
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        current_app.logger.exception("Could not create listing-plan payment record")
+        flash("Could not start payment. Please try again.", "error")
+        return redirect(url_for("profile.view"))
+
+    try:
+        response = stk_push(phone_number, LISTING_PLAN_PRICE, reference)
+    except MpesaError as error:
+        payment.status = "failed"
+        payment.mpesa_response = json.dumps({"message": str(error)})
+        try:
+            db.session.commit()
+        except SQLAlchemyError:
+            db.session.rollback()
+            current_app.logger.exception("Could not record listing-plan request failure: %s", reference)
+            flash("Payment failed and could not be recorded. Please contact support.", "error")
+            return redirect(url_for("profile.view"))
+        flash(str(error), "error")
+        return redirect(url_for("profile.view"))
+
+    payment.checkout_request_id = response["CheckoutRequestID"]
+    payment.merchant_request_id = response.get("MerchantRequestID")
+    payment.mpesa_response = json.dumps(response)
+    try:
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        current_app.logger.exception("Could not save accepted listing-plan request: %s", reference)
+        flash(
+            "M-Pesa accepted the prompt, but the request could not be saved. "
+            f"Contact support with reference {reference}.",
+            "error",
+        )
+        return redirect(url_for("profile.view"))
+
+    flash(f"KES {LISTING_PLAN_PRICE} payment prompt sent. Approve it on your phone.", "info")
+    return redirect(url_for("profile.view"))
+
+
+@bp.post("/seller/listing-plan/<int:payment_id>/check")
+@login_required
+def check_listing_plan_payment(payment_id):
+    payment = ListingPlanPayment.query.filter_by(
+        id=payment_id,
+        seller_id=current_user.id,
+    ).first_or_404()
+    if payment.status != "pending":
+        flash(f"Listing plan payment is {payment.status}.", "info")
+        return redirect(url_for("profile.view"))
+    if not payment.checkout_request_id:
+        flash("M-Pesa has not returned a checkout reference yet. Please try again shortly.", "info")
+        return redirect(url_for("profile.view"))
+
+    try:
+        data = stk_query(payment.checkout_request_id)
+    except MpesaError as error:
+        flash(str(error), "error")
+        return redirect(url_for("profile.view"))
+
+    raw_result_code = data.get("ResultCode")
+    if raw_result_code is None:
+        flash("M-Pesa is still processing the payment. Check again shortly.", "info")
+        return redirect(url_for("profile.view"))
+    try:
+        result_code = int(raw_result_code)
+    except (TypeError, ValueError):
+        flash("M-Pesa returned an unrecognized status. Please check again.", "error")
+        return redirect(url_for("profile.view"))
+
+    _set_listing_plan_payment_result(payment, result_code, data)
+    try:
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        current_app.logger.exception("Could not save listing-plan payment query result")
+        flash("Could not save the M-Pesa result. Please check again.", "error")
+        return redirect(url_for("profile.view"))
+    flash(f"Listing plan payment is {payment.status}.", "success" if payment.status == "success" else "info")
+    return redirect(url_for("profile.view"))
+
+
+def _set_listing_plan_payment_result(payment, result_code, data):
+    if payment.paid_at is not None:
+        return
+    payment.status = "success" if result_code == 0 else "cancelled" if result_code == 1032 else "failed"
+    payment.mpesa_response = json.dumps(data)
+    if result_code == 0:
+        payment.paid_at = datetime.now(timezone.utc)
+        payment.expires_at = payment.paid_at + timedelta(days=LISTING_PLAN_DAYS)
+
+
+def _callback_paid_amount(callback):
+    metadata = callback.get("CallbackMetadata")
+    items = metadata.get("Item") if isinstance(metadata, dict) else None
+    if not isinstance(items, list):
+        return None
+    for item in items:
+        if isinstance(item, dict) and item.get("Name") == "Amount":
+            value = item.get("Value")
+            if isinstance(value, bool):
+                return None
+            try:
+                amount = Decimal(str(value))
+            except (InvalidOperation, TypeError, ValueError):
+                return None
+            return amount if amount.is_finite() else None
+    return None
+
+
 @bp.post("/mpesa/callback")
 @csrf.exempt
 def mpesa_callback():
@@ -183,6 +324,23 @@ def mpesa_callback():
     result_code = callback.get("ResultCode")
     if not checkout_id or isinstance(result_code, bool) or not isinstance(result_code, int):
         return jsonify(ResultCode=1, ResultDesc="Invalid callback data"), 400
+
+    plan_payment = ListingPlanPayment.query.filter_by(checkout_request_id=checkout_id).first()
+    if plan_payment:
+        if result_code == 0 and _callback_paid_amount(callback) != Decimal(plan_payment.amount):
+            current_app.logger.warning(
+                "M-Pesa listing-plan callback amount did not match reference %s",
+                plan_payment.reference,
+            )
+            result_code = -1
+        _set_listing_plan_payment_result(plan_payment, result_code, data)
+        try:
+            db.session.commit()
+        except SQLAlchemyError:
+            db.session.rollback()
+            current_app.logger.exception("Could not save M-Pesa listing-plan callback")
+            return jsonify(ResultCode=1, ResultDesc="Could not record payment result"), 500
+        return jsonify(ResultCode=0, ResultDesc="Success")
 
     payment = Payment.query.filter_by(checkout_request_id=checkout_id).first()
     if not payment:

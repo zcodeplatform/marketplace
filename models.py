@@ -4,6 +4,8 @@ from urllib.parse import quote
 
 from flask import current_app, url_for
 from flask_login import UserMixin
+from sqlalchemy import and_, func, or_, select
+from sqlalchemy.orm import aliased
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from extensions import db, login_manager
@@ -22,6 +24,8 @@ CATEGORIES = [
 STATUS_ACTIVE = "active"
 STATUS_SOLD = "sold"
 MAX_SELLER_PRODUCTS = 5
+LISTING_PLAN_PRICE = 100
+LISTING_PLAN_DAYS = 30
 
 
 def _image_url(path, fallback):
@@ -59,6 +63,9 @@ class User(UserMixin, db.Model):
     )
     payment_shares = db.relationship(
         "PaymentSeller", back_populates="seller", lazy="dynamic",
+    )
+    listing_plan_payments = db.relationship(
+        "ListingPlanPayment", back_populates="seller", lazy="dynamic",
     )
 
     def set_password(self, raw):
@@ -161,3 +168,70 @@ class PaymentSeller(db.Model):
 
     payment = db.relationship("Payment", back_populates="seller_shares")
     seller = db.relationship("User", back_populates="payment_shares")
+
+
+class ListingPlanPayment(db.Model):
+    __tablename__ = "listing_plan_payments"
+
+    id = db.Column(db.Integer, primary_key=True)
+    seller_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    reference = db.Column(db.String(12), unique=True, nullable=False, index=True)
+    checkout_request_id = db.Column(db.String(255), unique=True, nullable=True, index=True)
+    merchant_request_id = db.Column(db.String(255), nullable=True)
+    phone_number = db.Column(db.String(12), nullable=False)
+    amount = db.Column(db.Integer, nullable=False, default=100)
+    status = db.Column(db.String(12), nullable=False, default="pending", index=True)
+    mpesa_response = db.Column(db.Text, nullable=True)
+    created_at = db.Column(db.DateTime, default=_now, nullable=False)
+    paid_at = db.Column(db.DateTime, nullable=True)
+    expires_at = db.Column(db.DateTime, nullable=True, index=True)
+
+    seller = db.relationship("User", back_populates="listing_plan_payments")
+
+
+def active_listing_plan(seller_id, now=None):
+    now = now or _now()
+    return ListingPlanPayment.query.filter(
+        ListingPlanPayment.seller_id == seller_id,
+        ListingPlanPayment.status == "success",
+        ListingPlanPayment.expires_at > now,
+    ).order_by(ListingPlanPayment.paid_at.desc(), ListingPlanPayment.id.desc()).first()
+
+
+def latest_successful_listing_plan_payment(seller_id):
+    return ListingPlanPayment.query.filter(
+        ListingPlanPayment.seller_id == seller_id,
+        ListingPlanPayment.status == "success",
+        ListingPlanPayment.paid_at.isnot(None),
+    ).order_by(
+        ListingPlanPayment.paid_at.desc(),
+        ListingPlanPayment.id.desc(),
+    ).first()
+
+
+def public_listing_filter(now=None):
+    now = now or _now()
+    older_product = aliased(Product)
+    prior_listing_count = (
+        select(func.count(older_product.id))
+        .where(
+            older_product.seller_id == Product.seller_id,
+            or_(
+                older_product.created_at < Product.created_at,
+                and_(
+                    older_product.created_at == Product.created_at,
+                    older_product.id < Product.id,
+                ),
+            ),
+        )
+        .correlate(Product)
+        .scalar_subquery()
+    )
+    active_sellers = select(ListingPlanPayment.seller_id).where(
+        ListingPlanPayment.status == "success",
+        ListingPlanPayment.expires_at > now,
+    )
+    return or_(
+        prior_listing_count < MAX_SELLER_PRODUCTS,
+        Product.seller_id.in_(active_sellers),
+    )

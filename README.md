@@ -29,6 +29,9 @@ The callback must be reachable by Safaricom; `localhost` and `127.0.0.1` are not
 
 Seller profiles show the seller’s per-checkout gross sales amount and item snapshot, with pending, successful, failed, and canceled statuses. This is transaction history, not a seller payout ledger. Seller history is tracked for checkouts created after the seller-payment records were added.
 
+## Seller listing plan
+The first five seller listings are free. From the seller profile, a seller can pay KES 100 through M-Pesa for unlimited visible listings for 30 days. The plan starts only after a successful M-Pesa confirmation; the profile shows payment status and expiry, and pending payments can be checked directly with Daraja. Each successful payment starts a new 30-day period. After expiry, the seller’s five oldest listings remain visible and newer listings are hidden until renewal. Plan payment records are stored separately from customer checkout payments in `listing_plan_payments`.
+
 ## Image storage setup
 Image uploads are decoded and re-encoded as WebP (quality 80) before storage. To store them in Cloudflare R2:
 1. Create an R2 bucket and an R2 API token with object read/write permissions for that bucket.

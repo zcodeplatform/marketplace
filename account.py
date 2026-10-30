@@ -5,7 +5,17 @@ from flask import Blueprint, current_app, flash, redirect, render_template, requ
 from flask_login import current_user, login_required
 
 from extensions import db
-from models import MAX_SELLER_PRODUCTS, Payment, PaymentSeller
+from models import (
+    LISTING_PLAN_DAYS,
+    LISTING_PLAN_PRICE,
+    MAX_SELLER_PRODUCTS,
+    ListingPlanPayment,
+    Payment,
+    PaymentSeller,
+    Product,
+    active_listing_plan,
+    latest_successful_listing_plan_payment,
+)
 from utils import ImageStorageError, ImageUploadError, allowed_image, delete_image, save_image
 
 bp = Blueprint("profile", __name__)
@@ -26,10 +36,32 @@ def view():
         {"share": share, "line_items": json.loads(share.items_json)}
         for share in seller_payments
     ]
+    products = current_user.products.all()
+    free_product_ids = {
+        product_id
+        for (product_id,) in db.session.query(Product.id)
+        .filter_by(seller_id=current_user.id)
+        .order_by(Product.created_at.asc(), Product.id.asc())
+        .limit(MAX_SELLER_PRODUCTS)
+        .all()
+    }
+    active_plan = active_listing_plan(current_user.id)
+    last_successful_plan_payment = latest_successful_listing_plan_payment(current_user.id)
+    plan_payments = current_user.listing_plan_payments.order_by(
+        ListingPlanPayment.created_at.desc(),
+        ListingPlanPayment.id.desc(),
+    ).all()
     return render_template(
         "profile/view.html",
-        products=current_user.products.all(),
-        product_limit=MAX_SELLER_PRODUCTS,
+        products=products,
+        free_product_ids=free_product_ids,
+        product_limit="Unlimited" if active_plan else MAX_SELLER_PRODUCTS,
+        can_add_products=active_plan is not None or len(products) < MAX_SELLER_PRODUCTS,
+        active_listing_plan=active_plan,
+        last_successful_plan_payment=last_successful_plan_payment,
+        listing_plan_payments=plan_payments,
+        listing_plan_price=LISTING_PLAN_PRICE,
+        listing_plan_days=LISTING_PLAN_DAYS,
         seller_payment_history=history,
     )
 

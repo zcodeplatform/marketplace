@@ -1,13 +1,16 @@
 from flask import Blueprint, redirect, render_template, request, url_for
 
-from models import CATEGORIES, STATUS_ACTIVE, Product
+from models import CATEGORIES, STATUS_ACTIVE, Product, public_listing_filter
 
 bp = Blueprint("main", __name__)
 
 
 @bp.route("/")
 def index():
-    latest = Product.query.filter_by(status=STATUS_ACTIVE).order_by(Product.created_at.desc()).limit(6).all()
+    latest = Product.query.filter(
+        Product.status == STATUS_ACTIVE,
+        public_listing_filter(),
+    ).order_by(Product.created_at.desc()).limit(6).all()
     return render_template("index.html", products=latest, categories=CATEGORIES)
 
 
@@ -17,7 +20,7 @@ def browse():
     category = request.args.get("category", "")
     show_sold = request.args.get("sold") == "1"
 
-    query = Product.query
+    query = Product.query.filter(public_listing_filter())
     if not show_sold:
         query = query.filter_by(status=STATUS_ACTIVE)
     if category in CATEGORIES:
@@ -39,12 +42,18 @@ def cart():
 
 @bp.route("/p/<slug>")
 def product_detail(slug):
-    product = Product.query.filter_by(slug=slug).first_or_404()
+    product = Product.query.filter(
+        Product.slug == slug,
+        public_listing_filter(),
+    ).first_or_404()
     return render_template("products/detail.html", product=product)
 
 
 @bp.route("/product/<int:product_id>")
 def product_by_id(product_id):
     """Alternate link form: /product/<id> redirects to the canonical /p/<slug>."""
-    product = Product.query.get_or_404(product_id)
+    product = Product.query.filter(
+        Product.id == product_id,
+        public_listing_filter(),
+    ).first_or_404()
     return redirect(url_for("main.product_detail", slug=product.slug), code=301)

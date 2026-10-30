@@ -1134,6 +1134,15 @@ form input:disabled {
     grid-template-columns: 1fr;
   }
 }
+@media (min-width: 520px) {
+  .listing-plan-form {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: end;
+  }
+  .listing-plan-form label {
+    grid-column: 1 / -1;
+  }
+}
 .btn-google {
   display: flex;
   align-items: center;
@@ -1616,6 +1625,95 @@ form input:disabled {
 }
 .profile-head p {
   margin: 0.2rem 0;
+}
+.listing-plan {
+  margin-top: 1.5rem;
+  padding: 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: 0.9rem;
+  background: var(--surface);
+}
+.listing-plan-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+.listing-plan-heading .kicker {
+  color: var(--primary);
+}
+.listing-plan-heading h2 {
+  margin: 0.2rem 0 0;
+  font-size: 1.35rem;
+}
+.listing-plan-status {
+  margin: 0.8rem 0;
+  color: var(--muted);
+}
+.listing-plan-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0.6rem;
+  max-width: 34rem;
+}
+.listing-plan-form label {
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+.listing-plan-form input {
+  margin-top: 0 !important;
+}
+.listing-plan-form .btn {
+  margin: 0;
+}
+.listing-plan-renewal-note {
+  margin: 0.65rem 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.listing-plan-history {
+  margin-top: 1rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--line);
+}
+.listing-plan-history summary {
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.listing-plan-history ul {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+.listing-plan-history li {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line);
+}
+.listing-plan-history li > div:first-child {
+  display: grid;
+  gap: 0.15rem;
+}
+.listing-plan-history .muted {
+  font-size: 0.8rem;
+}
+.listing-plan-history-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.listing-plan-history-actions form,
+.listing-plan-history-actions .btn {
+  margin: 0;
 }
 .avatar-edit {
   display: flex;

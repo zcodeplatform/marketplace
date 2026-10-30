@@ -21,9 +21,76 @@
     </div>
   </div>
 
+  <section class="listing-plan" aria-labelledby="listing-plan-title">
+    <div class="listing-plan-heading">
+      <div>
+        <p class="kicker">Seller plan</p>
+        <h2 id="listing-plan-title">Monthly listings</h2>
+      </div>
+      {% if active_listing_plan %}
+      <span class="status-pill status-success">Active</span>
+      {% elif last_successful_plan_payment %}
+      <span class="status-pill status-failed">Expired</span>
+      {% endif %}
+    </div>
+    {% if active_listing_plan %}
+    <p class="listing-plan-status">
+      Unlimited listings are visible until
+      <strong>{{ active_listing_plan.expires_at.strftime('%b %d, %Y at %H:%M UTC') }}</strong>.
+    </p>
+    {% elif last_successful_plan_payment %}
+    <p class="listing-plan-status">
+      Your plan expired {{ last_successful_plan_payment.expires_at.strftime('%b %d, %Y at %H:%M UTC') }}.
+      Listings beyond your first five are hidden from buyers until you renew.
+    </p>
+    {% else %}
+    <p class="listing-plan-status">
+      Your first five listings are free. Pay KES {{ listing_plan_price }} for unlimited visible listings for {{ listing_plan_days }} days.
+    </p>
+    {% endif %}
+    <form class="listing-plan-form" method="post" action="{{ url_for('payments.start_listing_plan') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <label for="listing-plan-phone">M-Pesa phone number</label>
+      <input id="listing-plan-phone" type="tel" name="phone" value="{{ current_user.phone or '' }}"
+             placeholder="0712345678" autocomplete="tel" required />
+      <button class="btn btn-sm" type="submit">
+        {% if active_listing_plan %}Renew for KES {{ listing_plan_price }}{% else %}Pay KES {{ listing_plan_price }}{% endif %}
+      </button>
+    </form>
+    <p class="listing-plan-renewal-note">Each successful payment starts a new 30-day period. M-Pesa fees may apply.</p>
+
+    {% if listing_plan_payments %}
+    <details class="listing-plan-history">
+      <summary>Plan payment history ({{ listing_plan_payments|length }})</summary>
+      <ul>
+        {% for plan_payment in listing_plan_payments %}
+        <li>
+          <div>
+            <strong>KES {{ plan_payment.amount }}</strong>
+            <span class="muted">{{ plan_payment.created_at.strftime('%b %d, %Y') }} · {{ plan_payment.reference }}</span>
+            {% if plan_payment.expires_at %}
+            <span class="muted">Visible through {{ plan_payment.expires_at.strftime('%b %d, %Y at %H:%M UTC') }}</span>
+            {% endif %}
+          </div>
+          <div class="listing-plan-history-actions">
+            <span class="status-pill status-{{ plan_payment.status }}">{{ plan_payment.status }}</span>
+            {% if plan_payment.status == 'pending' %}
+            <form method="post" action="{{ url_for('payments.check_listing_plan_payment', payment_id=plan_payment.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+              <button class="btn btn-sm btn-outline" type="submit">Check M-Pesa</button>
+            </form>
+            {% endif %}
+          </div>
+        </li>
+        {% endfor %}
+      </ul>
+    </details>
+    {% endif %}
+  </section>
+
   <div class="section-head">
     <h2>Your products <span class="muted">({{ products|length }}/{{ product_limit }})</span></h2>
-    {% if products|length < product_limit %}
+    {% if can_add_products %}
     <a class="btn btn-sm" href="{{ url_for('seller.new') }}">+ Sell a product</a>
     {% else %}
     <span class="muted">Product limit reached</span>
@@ -34,9 +101,18 @@
   <ul class="my-products">
     {% for p in products %}
     <li>
+      {% if p.id in free_product_ids or active_listing_plan %}
       <a href="{{ url_for('main.product_detail', slug=p.slug) }}"><img src="{{ p.image_url }}" alt="" /></a>
+      {% else %}
+      <img src="{{ p.image_url }}" alt="" />
+      {% endif %}
       <div class="mp-info">
+        {% if p.id in free_product_ids or active_listing_plan %}
         <a href="{{ url_for('main.product_detail', slug=p.slug) }}" class="mp-title">{{ p.title }}</a>
+        {% else %}
+        <span class="mp-title">{{ p.title }}</span>
+        <span class="status-pill status-failed">Hidden until plan renewal</span>
+        {% endif %}
         <p class="muted">{{ p.category }} · {{ p.price|money }}
           <span class="status-pill status-{{ p.status }}">{{ p.status }}</span></p>
       </div>
