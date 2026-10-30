@@ -5,15 +5,15 @@
 <section class="store-hero" aria-labelledby="store-hero-title">
   <div class="wrap store-hero-layout">
     <div class="store-hero-content">
-      <p class="kicker">Your marketplace for everyday finds</p>
-      <h1 id="store-hero-title">Good finds,<br />closer to home.</h1>
-      <p class="store-hero-copy">Explore useful pieces and one-of-a-kind finds from independent sellers.</p>
+      <!-- <p class="kicker">Comrade goods, comrade profit</p> -->
+      <h1 id="store-hero-title">Comrade marketplace,<br />Bei yetu.</h1>
+      <p class="store-hero-copy">Comrade market, buy sell products from the comfort of your hostel/room. Pata customer chap chap</p>
       <form class="hero-search" method="get" action="{{ url_for('main.browse') }}" role="search">
         <input type="search" name="q" placeholder="What are you looking for?" aria-label="Search products" />
         <button class="btn" type="submit">Search</button>
       </form>
       <div class="store-hero-actions">
-        <a class="btn store-hero-browse" href="{{ url_for('main.browse') }}">Explore the marketplace</a>
+        <a class="btn store-hero-browse" href="{{ url_for('main.browse') }}">Explore market</a>
         <a class="store-sell-link" href="{{ url_for('seller.new') }}">Have something to sell? <span>Start here</span></a>
       </div>
     </div>
