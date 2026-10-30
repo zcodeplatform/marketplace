@@ -428,6 +428,45 @@ paintCount();
 paintCartPage();
 if (state.payment && state.payment.status === "pending") pollPayment();
 
+const pageLoader = document.querySelector("[data-page-loader]");
+const showPageLoader = () => {
+  if (pageLoader) pageLoader.hidden = false;
+};
+
+document.addEventListener("click", (event) => {
+  if (
+    event.defaultPrevented ||
+    event.button !== 0 ||
+    event.metaKey ||
+    event.ctrlKey ||
+    event.shiftKey ||
+    event.altKey
+  ) return;
+
+  const link = event.target.closest("a[href]");
+  if (!link || link.hasAttribute("download") || link.dataset.noLoader !== undefined) return;
+  if (link.target && link.target !== "_self") return;
+
+  const destination = new URL(link.href, window.location.href);
+  if (
+    destination.origin !== window.location.origin ||
+    (destination.pathname === window.location.pathname &&
+      destination.search === window.location.search &&
+      destination.hash)
+  ) return;
+
+  showPageLoader();
+});
+
+document.addEventListener("submit", (event) => {
+  if (event.defaultPrevented || event.target.matches("[data-live-search]")) return;
+  showPageLoader();
+});
+
+window.addEventListener("pageshow", () => {
+  if (pageLoader) pageLoader.hidden = true;
+});
+
 const liveSearch = document.querySelector("[data-live-search]");
 const productResults = document.querySelector("#product-results");
 
