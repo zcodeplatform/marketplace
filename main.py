@@ -51,6 +51,14 @@ def sitemap():
     return Response(xml, content_type="text/xml; charset=utf-8")
 
 
+@bp.get("/google1fc7af632ee3cc17.html")
+def google_site_verification():
+    return Response(
+        "google-site-verification: google1fc7af632ee3cc17.html",
+        mimetype="text/html",
+    )
+
+
 @bp.route("/")
 def index():
     latest = Product.query.filter(
