@@ -416,19 +416,39 @@ h3 {
 .ad-carousel {
   position: relative;
 }
+.ad-carousel-slides {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
 .ad-slide[hidden] {
   display: none;
 }
-.ad-slide a,
-.ad-slide img {
+.ad-slide-media,
+.ad-slide a {
+  position: relative;
   display: block;
   width: 100%;
 }
 .ad-slide img {
-  aspect-ratio: 16 / 6;
-  border-radius: 0.9rem;
+  aspect-ratio: 4 / 3;
+  border-radius: 0.8rem;
   background: var(--bg);
   object-fit: cover;
+}
+.ad-slide-title {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  padding: 2rem 0.9rem 0.8rem;
+  border-radius: 0 0 0.8rem 0.8rem;
+  background: linear-gradient(transparent, rgb(26 23 20 / 78%));
+  color: #fffdf9;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
 }
 .ad-carousel-controls {
   display: flex;
@@ -480,6 +500,16 @@ h3 {
   color: var(--muted);
   font-size: 0.8rem;
   font-variant-numeric: tabular-nums;
+}
+@media (min-width: 601px) {
+  .ad-carousel-controls {
+    display: none;
+  }
+}
+@media (min-width: 601px) and (max-width: 900px) {
+  .ad-carousel-slides {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 #story .inner,
 #visit {
@@ -966,9 +996,18 @@ h3 {
 }
 @media (max-width: 600px) {
   .store-hero h1 { font-size: clamp(2.25rem, 10vw, 2.8rem); }
+  .ad-carousel-slides {
+    display: block;
+  }
+  .ad-slide[hidden] {
+    display: none;
+  }
   .ad-slide img {
     aspect-ratio: 4 / 3;
     border-radius: 0.65rem;
+  }
+  .ad-slide-title {
+    border-radius: 0 0 0.65rem 0.65rem;
   }
 }
 @media (min-width: 640px) {
@@ -1445,6 +1484,29 @@ form input:disabled {
   color: var(--muted);
   font-size: 0.8rem;
   font-weight: 400;
+}
+.admin-ad-current-image {
+  display: grid;
+  justify-items: start;
+  gap: 0.4rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.admin-ad-current-image img {
+  width: min(24rem, 100%);
+  aspect-ratio: 16 / 9;
+  border: 1px solid var(--line);
+  border-radius: 0.6rem;
+  background: var(--bg);
+  object-fit: cover;
+}
+.admin-ad-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+.admin-ad-form-actions .btn {
+  margin: 0;
 }
 .admin-ad-form .btn {
   justify-self: start;

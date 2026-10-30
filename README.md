@@ -22,7 +22,7 @@ The "Continue with Google" button only appears once both values are set.
 ## Homepage ads
 Set `ADMIN_EMAILS` to a comma-separated list of account email addresses that can manage homepage banners, for example `ADMIN_EMAILS=admin@example.com`. Those accounts see the **Ads** link and can upload, publish, hide, or delete banners at `/admin/ads`; other signed-in users are denied access.
 
-Ad images use the existing WebP image pipeline and configured image storage (Cloudflare R2 by default). Only the three newest active ads appear in the homepage slideshow. Each ad needs a short accessible description and can optionally link to an external `http` or `https` URL.
+Ad images use the existing WebP image pipeline and configured image storage (Cloudflare R2 by default). Only the three newest active ads appear in the homepage slideshow. Each ad needs a short accessible description and can optionally link to an external `http` or `https` URL. Admins can edit an ad’s description and destination URL or optionally replace its image; leaving the replacement field blank preserves the current image.
 
 ## M-Pesa checkout setup
 1. In the Safaricom Daraja portal, create an app and get its consumer key and secret, Lipa Na M-Pesa passkey, and shortcode.

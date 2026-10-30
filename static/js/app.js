@@ -528,22 +528,25 @@ document.querySelectorAll("[data-ad-carousel]").forEach((carousel) => {
   const count = carousel.querySelector("[data-ad-count]");
   const previous = carousel.querySelector("[data-ad-prev]");
   const next = carousel.querySelector("[data-ad-next]");
-  if (slides.length < 2) return;
+  if (!slides.length) return;
 
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  const mobileLayout = window.matchMedia("(max-width: 600px)");
   let activeIndex = 0;
   let timer;
 
   const showSlide = (index) => {
     activeIndex = (index + slides.length) % slides.length;
     slides.forEach((slide, slideIndex) => {
-      slide.hidden = slideIndex !== activeIndex;
+      slide.hidden = mobileLayout.matches && slideIndex !== activeIndex;
     });
     dots.forEach((dot, dotIndex) => {
       if (dotIndex === activeIndex) dot.setAttribute("aria-current", "true");
       else dot.removeAttribute("aria-current");
     });
     if (count) count.textContent = `${activeIndex + 1} / ${slides.length}`;
+    if (previous) previous.disabled = !mobileLayout.matches;
+    if (next) next.disabled = !mobileLayout.matches;
   };
 
   const stop = () => {
@@ -554,6 +557,8 @@ document.querySelectorAll("[data-ad-carousel]").forEach((carousel) => {
     stop();
     if (
       reducedMotion.matches ||
+      !mobileLayout.matches ||
+      slides.length < 2 ||
       document.hidden ||
       carousel.matches(":hover") ||
       carousel.contains(document.activeElement)
@@ -583,6 +588,10 @@ document.querySelectorAll("[data-ad-carousel]").forEach((carousel) => {
   });
   document.addEventListener("visibilitychange", start);
   reducedMotion.addEventListener?.("change", start);
+  mobileLayout.addEventListener("change", () => {
+    showSlide(activeIndex);
+    start();
+  });
 
   showSlide(0);
   start();

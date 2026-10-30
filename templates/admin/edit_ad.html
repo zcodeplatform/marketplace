@@ -1,0 +1,38 @@
+{% extends "base.html" %}
+{% block title %}Edit homepage ad{% endblock %}
+{% block content %}
+<section class="wrap page admin-ads-page">
+  <div class="browse-heading">
+    <div>
+      <p class="kicker">Marketplace content</p>
+      <h1 class="page-title">Edit homepage ad</h1>
+    </div>
+    <a class="shop-all-link" href="{{ url_for('ads.manage') }}">Back to ads</a>
+  </div>
+
+  <form class="admin-ad-form" method="post" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <label>
+      Banner description
+      <input type="text" name="title" maxlength="160" value="{{ ad.title }}" required />
+    </label>
+    <div class="admin-ad-current-image">
+      <span class="muted">Current banner</span>
+      <img src="{{ ad.image_url }}" alt="{{ ad.title }}" />
+    </div>
+    <label>
+      Replace banner image <span class="muted">(optional)</span>
+      <input type="file" name="image" accept=".png,.jpg,.jpeg,.webp,.gif" />
+      <small>Leave empty to keep the current image. New images are optimized and saved as WebP.</small>
+    </label>
+    <label>
+      Destination URL <span class="muted">(optional)</span>
+      <input type="url" name="destination_url" maxlength="500" value="{{ ad.destination_url or '' }}" placeholder="https://example.com" />
+    </label>
+    <div class="admin-ad-form-actions">
+      <button class="btn btn-sm" type="submit">Save changes</button>
+      <a class="btn btn-sm btn-outline" href="{{ url_for('ads.manage') }}">Cancel</a>
+    </div>
+  </form>
+</section>
+{% endblock %}

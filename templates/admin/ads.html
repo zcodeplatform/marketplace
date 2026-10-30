@@ -43,6 +43,7 @@
       </div>
       <div class="admin-ad-actions">
         <span class="status-pill {{ 'status-active' if ad.is_active else 'status-cancelled' }}">{{ 'Published' if ad.is_active else 'Hidden' }}</span>
+        <a class="btn btn-sm btn-outline" href="{{ url_for('ads.edit', ad_id=ad.id) }}">Edit</a>
         <form method="post" action="{{ url_for('ads.toggle', ad_id=ad.id) }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
           <button class="btn btn-sm btn-outline" type="submit">{{ 'Hide' if ad.is_active else 'Publish' }}</button>

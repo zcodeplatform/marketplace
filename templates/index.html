@@ -49,13 +49,17 @@
       <div class="ad-carousel-slides">
         {% for ad in ads %}
         <article class="ad-slide" data-ad-slide {% if not loop.first %}hidden{% endif %}>
+          <div class="ad-slide-media">
           {% if ad.destination_url %}
-          <a href="{{ ad.destination_url }}" target="_blank" rel="noopener noreferrer" aria-label="{{ ad.title }}">
-            <img src="{{ ad.image_url }}" alt="{{ ad.title }}" />
+          <a href="{{ ad.destination_url }}" target="_blank" rel="noopener noreferrer">
+            <img src="{{ ad.image_url }}" alt="" />
+            <span class="ad-slide-title">{{ ad.title }}</span>
           </a>
           {% else %}
           <img src="{{ ad.image_url }}" alt="{{ ad.title }}" />
+          <span class="ad-slide-title">{{ ad.title }}</span>
           {% endif %}
+          </div>
         </article>
         {% endfor %}
       </div>

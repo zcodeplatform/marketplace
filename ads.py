@@ -111,6 +111,66 @@ def toggle(ad_id):
     return redirect(url_for("ads.manage"))
 
 
+@bp.route("/<int:ad_id>/edit", methods=["GET", "POST"])
+@login_required
+def edit(ad_id):
+    _admin_required()
+    ad = db.get_or_404(HomepageAd, ad_id)
+
+    if request.method == "GET":
+        return render_template("admin/edit_ad.html", ad=ad)
+
+    title = request.form.get("title", "").strip()
+    destination = request.form.get("destination_url", "").strip()
+    image = request.files.get("image")
+    safe_destination = _valid_destination(destination)
+    if not title or len(title) > 160:
+        flash("Ad text is required and must be 160 characters or fewer.", "error")
+        return redirect(url_for("ads.edit", ad_id=ad.id))
+    if safe_destination is False:
+        flash("Ad link must be a complete http or https URL.", "error")
+        return redirect(url_for("ads.edit", ad_id=ad.id))
+    if image and image.filename and not allowed_image(image.filename):
+        flash("Choose a PNG, JPG, WEBP or GIF banner image.", "error")
+        return redirect(url_for("ads.edit", ad_id=ad.id))
+
+    new_image_path = None
+    if image and image.filename:
+        try:
+            new_image_path = save_image(image)
+        except (ImageUploadError, ImageStorageError) as error:
+            flash(str(error), "error")
+            return redirect(url_for("ads.edit", ad_id=ad.id))
+
+    old_image_path = ad.image_path
+    ad.title = title
+    ad.destination_url = safe_destination
+    if new_image_path:
+        ad.image_path = new_image_path
+    try:
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        current_app.logger.exception("Could not update homepage ad: %s", ad_id)
+        if new_image_path:
+            try:
+                delete_image(new_image_path)
+            except ImageStorageError:
+                current_app.logger.exception("Could not clean up replacement homepage ad image")
+        flash("Could not update the ad. Please try again.", "error")
+        return redirect(url_for("ads.edit", ad_id=ad_id))
+
+    if new_image_path:
+        try:
+            delete_image(old_image_path)
+        except ImageStorageError:
+            current_app.logger.exception("Ad updated but old image cleanup failed: %s", ad_id)
+            flash("Ad updated, but its previous image could not be removed from storage.", "error")
+            return redirect(url_for("ads.manage"))
+    flash("Homepage ad updated.", "success")
+    return redirect(url_for("ads.manage"))
+
+
 @bp.post("/<int:ad_id>/delete")
 @login_required
 def delete(ad_id):

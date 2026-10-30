@@ -118,6 +118,61 @@ class HomepageAdsTests(unittest.TestCase):
         save.assert_not_called()
         self.assertEqual(HomepageAd.query.count(), 0)
 
+    def test_edit_updates_ad_and_keeps_image_when_no_replacement_is_uploaded(self):
+        self.app.config["ADMIN_EMAILS"] = "admin@example.test"
+        self._login(self.admin)
+        ad = self._ad("Existing banner")
+        token = self._csrf_token(f"/admin/ads/{ad.id}/edit")
+
+        with patch("ads.save_image") as save:
+            response = self.client.post(
+                f"/admin/ads/{ad.id}/edit",
+                data={
+                    "csrf_token": token,
+                    "title": "Updated banner",
+                    "destination_url": "https://shop.example.test/new",
+                },
+            )
+
+        self.assertEqual(response.status_code, 302)
+        save.assert_not_called()
+        self.assertEqual(ad.title, "Updated banner")
+        self.assertEqual(ad.destination_url, "https://shop.example.test/new")
+        self.assertEqual(ad.image_path, "uploads/existing-banner.webp")
+
+    def test_edit_replaces_image_and_removes_previous_image(self):
+        self.app.config["ADMIN_EMAILS"] = "admin@example.test"
+        self._login(self.admin)
+        ad = self._ad("Existing banner")
+        token = self._csrf_token(f"/admin/ads/{ad.id}/edit")
+
+        with patch("ads.save_image", return_value="r2:uploads/replacement.webp") as save:
+            with patch("ads.delete_image") as delete:
+                response = self.client.post(
+                    f"/admin/ads/{ad.id}/edit",
+                    data={
+                        "csrf_token": token,
+                        "title": ad.title,
+                        "destination_url": "",
+                        "image": (io.BytesIO(b"fake image"), "replacement.png"),
+                    },
+                )
+
+        self.assertEqual(response.status_code, 302)
+        save.assert_called_once()
+        delete.assert_called_once_with("uploads/existing-banner.webp")
+        self.assertEqual(ad.image_path, "r2:uploads/replacement.webp")
+        self.assertIsNone(ad.destination_url)
+
+    def test_non_admin_cannot_edit_ad(self):
+        self.app.config["ADMIN_EMAILS"] = "admin@example.test"
+        ad = self._ad("Existing banner")
+        self._login(self.other_user)
+
+        response = self.client.get(f"/admin/ads/{ad.id}/edit")
+
+        self.assertEqual(response.status_code, 403)
+
     def test_homepage_shows_only_three_newest_active_ads(self):
         self._ad("Old banner")
         self._ad("Second newest")
