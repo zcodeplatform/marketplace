@@ -160,6 +160,8 @@ class PaymentCheckoutTests(unittest.TestCase):
         page = html.unescape(response.get_data(as_text=True))
 
         self.assertEqual(response.status_code, 200)
+        self.assertIn('action="/logout"', page)
+        self.assertIn(">Log out</button>", page)
         self.assertIn("Sales payment history", page)
         self.assertIn("(3)", page)
         self.assertIn("pending", page)

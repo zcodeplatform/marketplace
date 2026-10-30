@@ -124,13 +124,11 @@
   <footer class="site-footer">
     <div class="wrap">
       <div class="footer-main">
-        <div class="footer-brand">
-          <a class="brand" href="{{ url_for('main.index') }}">
-            <img src="{{ url_for('static', filename='img/logo.webp') }}" alt="" />
-            <span>marketplace</span>
-          </a>
-          <p>Discover useful pieces and one-of-a-kind finds from independent sellers.</p>
-        </div>
+        <nav class="footer-mobile-links" aria-label="Quick links">
+          <a href="{{ url_for('main.browse') }}">Browse</a>
+          <a href="{{ url_for('seller.new') }}">Start selling</a>
+          <a href="{{ url_for('main.cart') }}">Shopping bag</a>
+        </nav>
         <nav class="footer-column" aria-label="Shop">
           <h2>Shop</h2>
           <ul>
@@ -164,6 +162,25 @@
           </ul>
         </nav>
       </div>
+      <nav class="footer-social-links" aria-label="Follow us">
+        <a href="https://www.instagram.com/eliezerkenya/" target="_blank" rel="noopener noreferrer" aria-label="Instagram">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <rect x="3" y="3" width="18" height="18" rx="5" fill="none" stroke="currentColor" stroke-width="1.8" />
+            <circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.8" />
+            <circle cx="17.5" cy="6.5" r="1.1" fill="currentColor" />
+          </svg>
+        </a>
+        <a href="https://m.facebook.com/eliezerkenya" target="_blank" rel="noopener noreferrer" aria-label="Facebook">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path fill="currentColor" d="M13.5 21v-8h2.7l.4-3.1h-3.1V8c0-.9.3-1.5 1.6-1.5h1.7V3.7c-.3 0-1.3-.1-2.5-.1-2.5 0-4.2 1.5-4.2 4.3v2H7.3V13h2.8v8h3.4Z" />
+          </svg>
+        </a>
+        <a href="https://www.tiktok.com/@eliezerkenya" target="_blank" rel="noopener noreferrer" aria-label="TikTok">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path fill="currentColor" d="M19.6 8.1a7 7 0 0 1-4.2-1.4v7.1a5.8 5.8 0 1 1-5-5.7v3.7a2.2 2.2 0 1 0 1.4 2V2.8h3.6c.2 2.2 1.7 4 4.2 4.3v1Z" />
+          </svg>
+        </a>
+      </nav>
       <div class="footer-bottom">
         <span>Copyright &copy; 2026 Comrade Marketplace</span>
         <a href="{{ url_for('main.index') }}">Find something worth keeping.</a>
