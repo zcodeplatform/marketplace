@@ -20,6 +20,7 @@ CATEGORIES = [
 ]
 STATUS_ACTIVE = "active"
 STATUS_SOLD = "sold"
+MAX_SELLER_PRODUCTS = 5
 
 
 def _now():
@@ -45,6 +46,9 @@ class User(UserMixin, db.Model):
     products = db.relationship(
         "Product", backref="seller", lazy="dynamic",
         cascade="all, delete-orphan", order_by="Product.created_at.desc()",
+    )
+    payment_shares = db.relationship(
+        "PaymentSeller", back_populates="seller", lazy="dynamic",
     )
 
     def set_password(self, raw):
@@ -121,3 +125,23 @@ class Payment(db.Model):
     mpesa_response = db.Column(db.Text, nullable=True)
     status = db.Column(db.String(12), nullable=False, default="pending", index=True)
     created_at = db.Column(db.DateTime, default=_now, nullable=False)
+
+    seller_shares = db.relationship(
+        "PaymentSeller", back_populates="payment", cascade="all, delete-orphan",
+    )
+
+
+class PaymentSeller(db.Model):
+    __tablename__ = "payment_sellers"
+    __table_args__ = (
+        db.UniqueConstraint("payment_id", "seller_id", name="uq_payment_seller"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    payment_id = db.Column(db.Integer, db.ForeignKey("payments.id"), nullable=False, index=True)
+    seller_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    amount = db.Column(db.Numeric(10, 2), nullable=False)
+    items_json = db.Column(db.Text, nullable=False)
+
+    payment = db.relationship("Payment", back_populates="seller_shares")
+    seller = db.relationship("User", back_populates="payment_shares")

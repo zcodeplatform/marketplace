@@ -18,8 +18,12 @@
   </div>
 
   <div class="section-head">
-    <h2>Your products <span class="muted">({{ products|length }})</span></h2>
+    <h2>Your products <span class="muted">({{ products|length }}/{{ product_limit }})</span></h2>
+    {% if products|length < product_limit %}
     <a class="btn btn-sm" href="{{ url_for('seller.new') }}">+ Sell a product</a>
+    {% else %}
+    <span class="muted">Product limit reached</span>
+    {% endif %}
   </div>
 
   {% if products %}
@@ -48,6 +52,38 @@
   </ul>
   {% else %}
     <p class="empty-note">You haven't listed anything yet.</p>
+  {% endif %}
+
+  <div class="section-head">
+    <h2>Sales payment history <span class="muted">({{ seller_payment_history|length }})</span></h2>
+  </div>
+  <p class="payment-history-note">Your share of customer checkouts, including pending and unsuccessful payments. This is not a payout history.</p>
+  {% if seller_payment_history %}
+  <ul class="seller-payment-history">
+    {% for entry in seller_payment_history %}
+    {% set share = entry.share %}
+    <li class="seller-payment">
+      <div class="seller-payment-head">
+        <div>
+          <strong>Order {{ share.payment.reference }}</strong>
+          <p class="muted">{{ share.payment.created_at.strftime('%b %d, %Y at %H:%M') }}</p>
+        </div>
+        <span class="status-pill status-{{ share.payment.status }}">{{ share.payment.status }}</span>
+      </div>
+      <ul class="seller-payment-items">
+        {% for item in entry.line_items %}
+        <li>{{ item.name }} <span>× {{ item.qty }}</span></li>
+        {% endfor %}
+      </ul>
+      <div class="seller-payment-total">
+        <span>Your sales total</span>
+        <strong>{{ share.amount|money }}</strong>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+    <p class="empty-note">No sales payment transactions yet. New customer checkouts will appear here.</p>
   {% endif %}
 </section>
 {% endblock %}

@@ -1399,6 +1399,22 @@ form input:disabled {
   border-color: #d9a09b;
   color: var(--primary);
 }
+.status-success {
+  background: #f0f8f0;
+  border-color: #9bc59d;
+  color: #2f6b34;
+}
+.status-pending {
+  background: #fff8e8;
+  border-color: #dfc27e;
+  color: #765b12;
+}
+.status-failed,
+.status-cancelled {
+  background: #fbf1f0;
+  border-color: #d9a09b;
+  color: var(--primary);
+}
 
 /* ---------- Added: profile ---------- */
 .profile-head {
@@ -1460,6 +1476,55 @@ form input:disabled {
   margin: 0.2rem 0 0;
 }
 .mp-title {
+  font-weight: 500;
+}
+.payment-history-note {
+  margin: -0.5rem 0 1rem;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+.seller-payment-history {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.seller-payment {
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.75rem;
+  background: var(--surface);
+}
+.seller-payment-head,
+.seller-payment-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.seller-payment-head p {
+  margin: 0.2rem 0 0;
+}
+.seller-payment-items {
+  display: grid;
+  gap: 0.25rem;
+  margin: 0.75rem 0;
+  padding-left: 1.25rem;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+.seller-payment-items span {
+  white-space: nowrap;
+}
+.seller-payment-total {
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line);
+  font-size: 0.9rem;
+}
+.seller-payment-total strong {
+  font-family: var(--display);
+  font-size: 1.25rem;
   font-weight: 500;
 }
 .mp-actions {

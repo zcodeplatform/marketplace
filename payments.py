@@ -1,13 +1,14 @@
 import json
 import re
 import secrets
+from collections import defaultdict
 from decimal import Decimal, InvalidOperation
 
 from flask import Blueprint, current_app, jsonify, request
 from sqlalchemy.exc import SQLAlchemyError
 
 from extensions import csrf, db
-from models import STATUS_ACTIVE, Payment, Product
+from models import STATUS_ACTIVE, Payment, PaymentSeller, Product
 from mpesa import MpesaError, stk_push, stk_query
 
 bp = Blueprint("payments", __name__)
@@ -68,6 +69,7 @@ def _cart_snapshot(quantities):
             "price": format(product.price, ".2f"),
             "image": product.image_url,
             "qty": quantity,
+            "seller_id": product.seller_id,
         })
 
     items.sort(key=lambda item: item["id"])
@@ -89,12 +91,19 @@ def start_stk_push():
     if error or items is None or total is None:
         return jsonify(error=error or "Could not calculate your cart total."), 409
 
+    seller_items = defaultdict(list)
+    seller_amounts = defaultdict(lambda: Decimal("0.00"))
+    for item in items:
+        seller_id = item["seller_id"]
+        seller_items[seller_id].append({key: value for key, value in item.items() if key != "seller_id"})
+        seller_amounts[seller_id] += Decimal(item["price"]) * item["qty"]
+
     expected_total = data.get("expected_total")
     try:
         if Decimal(str(expected_total)) != total:
             return jsonify(
                 error="Product prices changed. Review the updated total and try again.",
-                items=items,
+                items=[{key: value for key, value in item.items() if key != "seller_id"} for item in items],
                 total=format(total, ".2f"),
             ), 409
     except (InvalidOperation, TypeError, ValueError):
@@ -111,6 +120,14 @@ def start_stk_push():
         items_json=json.dumps(items),
         status="pending",
     )
+    payment.seller_shares = [
+        PaymentSeller(
+            seller_id=seller_id,
+            amount=amount,
+            items_json=json.dumps(seller_items[seller_id]),
+        )
+        for seller_id, amount in seller_amounts.items()
+    ]
     db.session.add(payment)
     try:
         db.session.commit()

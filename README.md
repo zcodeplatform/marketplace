@@ -27,6 +27,8 @@ The "Continue with Google" button only appears once both values are set.
 
 The callback must be reachable by Safaricom; `localhost` and `127.0.0.1` are not reachable from Safaricom, so use a public HTTPS tunnel during local development. Do not use production credentials with the sandbox URL (or vice versa). A canceled prompt is recorded separately from other failures when Daraja reports cancellation. M-Pesa STK amounts must be whole Kenyan shillings; checkout rejects fractional totals. Successful payments are stored in the `payments` table with a cart snapshot and payment status.
 
+Seller profiles show the seller’s per-checkout gross sales amount and item snapshot, with pending, successful, failed, and canceled statuses. This is transaction history, not a seller payout ledger. Seller history is tracked for checkouts created after the seller-payment records were added.
+
 ## Layout
 - `app.py` app factory, CLI seed command · `config.py` · `extensions.py` · `models.py` · `utils.py`
 - `auth.py` signup/login/logout + Google · `main.py` home/browse/public product pages · `payments.py` M-Pesa checkout/callback/status

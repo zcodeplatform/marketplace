@@ -1,9 +1,11 @@
+import json
 import re
 
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
 from extensions import db
+from models import MAX_SELLER_PRODUCTS, Payment, PaymentSeller
 from utils import allowed_image, delete_image, save_image
 
 bp = Blueprint("profile", __name__)
@@ -14,7 +16,22 @@ PHONE_RE = re.compile(r"\+?[0-9][0-9\s\-]{6,18}")
 @bp.route("/profile")
 @login_required
 def view():
-    return render_template("profile/view.html", products=current_user.products.all())
+    seller_payments = (
+        PaymentSeller.query.join(Payment)
+        .filter(PaymentSeller.seller_id == current_user.id)
+        .order_by(Payment.created_at.desc())
+        .all()
+    )
+    history = [
+        {"share": share, "line_items": json.loads(share.items_json)}
+        for share in seller_payments
+    ]
+    return render_template(
+        "profile/view.html",
+        products=current_user.products.all(),
+        product_limit=MAX_SELLER_PRODUCTS,
+        seller_payment_history=history,
+    )
 
 
 @bp.route("/profile/edit", methods=["GET", "POST"])

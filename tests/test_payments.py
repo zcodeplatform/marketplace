@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 
 from app import _migrate_product_categories, create_app
 from extensions import db
-from models import CATEGORIES, Payment, Product, User
+from models import CATEGORIES, MAX_SELLER_PRODUCTS, Payment, PaymentSeller, Product, User
 from mpesa import stk_push, stk_query
 
 
@@ -39,6 +39,7 @@ class PaymentCheckoutTests(unittest.TestCase):
         db.drop_all()
         db.create_all()
         seller = User(name="Seller", email="seller@example.test")
+        self.seller = seller
         db.session.add(seller)
         db.session.flush()
         self.product = Product(
@@ -58,14 +59,14 @@ class PaymentCheckoutTests(unittest.TestCase):
         db.drop_all()
         self.context.pop()
 
-    def _checkout(self, phone="0712345678", expected_total="10.00"):
+    def _checkout(self, phone="0712345678", expected_total="10.00", items=None):
         token = self._csrf_token()
         return self.client.post(
             "/api/checkout/stk",
             json={
                 "phone": phone,
                 "expected_total": expected_total,
-                "items": [{"id": self.product.id, "qty": 1}],
+                "items": items or [{"id": self.product.id, "qty": 1}],
             },
             headers={"X-CSRFToken": token},
         )
@@ -88,6 +89,121 @@ class PaymentCheckoutTests(unittest.TestCase):
         self.assertEqual(response.json["amount"], 10)
         push.assert_called_once_with("254712345678", 10, response.json["reference"])
         self.assertEqual(Payment.query.one().status, "pending")
+        self.assertEqual(PaymentSeller.query.one().seller_id, self.seller.id)
+        self.assertEqual(PaymentSeller.query.one().amount, Decimal("10.00"))
+
+    @patch("payments.stk_push")
+    def test_multi_seller_checkout_records_each_seller_share(self, push):
+        second_seller = User(name="Second seller", email="second@example.test")
+        db.session.add(second_seller)
+        db.session.flush()
+        second_product = Product(
+            slug="second-item",
+            title="Second item",
+            description="",
+            price=Decimal("5.00"),
+            category="Other",
+            seller_id=second_seller.id,
+        )
+        db.session.add(second_product)
+        db.session.commit()
+        push.return_value = {
+            "ResponseCode": "0",
+            "CheckoutRequestID": "ws_CO_multi",
+            "MerchantRequestID": "merchant_multi",
+        }
+
+        response = self._checkout(
+            expected_total="15.00",
+            items=[
+                {"id": self.product.id, "qty": 1},
+                {"id": second_product.id, "qty": 1},
+            ],
+        )
+
+        self.assertEqual(response.status_code, 202)
+        shares = PaymentSeller.query.order_by(PaymentSeller.seller_id).all()
+        self.assertEqual([share.seller_id for share in shares], [self.seller.id, second_seller.id])
+        self.assertEqual([share.amount for share in shares], [Decimal("10.00"), Decimal("5.00")])
+        self.assertEqual(json.loads(shares[0].items_json)[0]["name"], "Test item")
+        self.assertEqual(json.loads(shares[1].items_json)[0]["name"], "Second item")
+
+    def test_profile_lists_only_current_sellers_payment_history(self):
+        other_seller = User(name="Other seller", email="other@example.test")
+        db.session.add(other_seller)
+        db.session.flush()
+        for index, (seller, status) in enumerate((
+            (self.seller, "pending"),
+            (self.seller, "success"),
+            (self.seller, "failed"),
+            (other_seller, "success"),
+        )):
+            payment = Payment(
+                reference=f"MPHIST{index}",
+                phone_number="254712345678",
+                amount=10,
+                items_json="[]",
+                status=status,
+            )
+            payment.seller_shares.append(PaymentSeller(
+                seller=seller,
+                amount=Decimal("10.00"),
+                items_json=json.dumps([{"name": f"{seller.name} item", "qty": 1}]),
+            ))
+            db.session.add(payment)
+        db.session.commit()
+        with self.client.session_transaction() as session:
+            session["_user_id"] = str(self.seller.id)
+            session["_fresh"] = True
+
+        response = self.client.get("/profile")
+        page = html.unescape(response.get_data(as_text=True))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Sales payment history", page)
+        self.assertIn("(3)", page)
+        self.assertIn("pending", page)
+        self.assertIn("success", page)
+        self.assertIn("failed", page)
+        self.assertEqual(page.count("Seller item"), 3)
+        self.assertNotIn("Other seller item", page)
+
+    def test_seller_cannot_add_more_than_five_products(self):
+        for index in range(MAX_SELLER_PRODUCTS - 1):
+            db.session.add(Product(
+                slug=f"extra-item-{index}",
+                title=f"Extra item {index}",
+                description="",
+                price=Decimal("1.00"),
+                category="Other",
+                seller_id=self.seller.id,
+            ))
+        db.session.commit()
+        with self.client.session_transaction() as session:
+            session["_user_id"] = str(self.seller.id)
+            session["_fresh"] = True
+        token = self._csrf_token()
+
+        get_response = self.client.get("/sell")
+        post_response = self.client.post(
+            "/sell",
+            data={
+                "csrf_token": token,
+                "title": "Over limit product",
+                "description": "Should not be created",
+                "price": "1.00",
+                "category": "Other",
+                "status": "active",
+            },
+            follow_redirects=True,
+        )
+
+        self.assertEqual(get_response.status_code, 302)
+        self.assertEqual(post_response.status_code, 200)
+        self.assertEqual(Product.query.filter_by(seller_id=self.seller.id).count(), MAX_SELLER_PRODUCTS)
+        page = html.unescape(post_response.get_data(as_text=True))
+        self.assertIn("Product limit reached", page)
+        self.assertIn(f"{MAX_SELLER_PRODUCTS}/{MAX_SELLER_PRODUCTS}", page)
 
     @patch("payments.stk_push")
     def test_changed_price_requires_review_before_push(self, push):
