@@ -291,8 +291,8 @@ h3 {
   overflow: hidden;
   aspect-ratio: 4 / 3;
   border-radius: 1.25rem;
-  background: var(--line);
-  box-shadow: 0 1.25rem 3rem rgb(26 23 20 / 12%);
+  /* background: var(--line); */
+  /* box-shadow: 0 1.25rem 3rem rgb(26 23 20 / 12%); */
 }
 .store-hero-image {
   width: 100%;
