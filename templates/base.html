@@ -23,10 +23,10 @@
         <a href="{{ url_for('main.browse') }}" {% if request.endpoint == 'main.browse' %}class="active"{% endif %}>Browse</a>
         <a href="{{ url_for('seller.new') }}" {% if request.endpoint == 'seller.new' %}class="active"{% endif %}>Sell</a>
         {% if current_user.is_authenticated %}
-        <form method="post" action="{{ url_for('auth.logout') }}" class="inline-form">
+        <!-- <form method="post" action="{{ url_for('auth.logout') }}" class="inline-form">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
           <button type="submit" class="nav-link-btn">Logout</button>
-        </form>
+        </form> -->
         <a class="nav-profile" href="{{ url_for('profile.view') }}">
           {% include "_avatar.html" with context %}
           <span>Profile</span>
