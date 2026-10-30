@@ -2,13 +2,16 @@ import click
 from dotenv import load_dotenv
 from flask import Flask, render_template
 
-from config import Config
 from extensions import csrf, db, login_manager, oauth
 
 load_dotenv()
 
 
-def create_app(config_object=Config):
+def create_app(config_object=None):
+    if config_object is None:
+        from config import Config
+
+        config_object = Config
     app = Flask(__name__)
     app.config.from_object(config_object)
 
@@ -27,9 +30,10 @@ def create_app(config_object=Config):
     from auth import bp as auth_bp
     from main import bp as main_bp
     from account import bp as profile_bp
+    from payments import bp as payments_bp
     from seller import bp as seller_bp
 
-    for bp in (main_bp, auth_bp, seller_bp, profile_bp):
+    for bp in (main_bp, auth_bp, seller_bp, profile_bp, payments_bp):
         app.register_blueprint(bp)
 
     @app.context_processor

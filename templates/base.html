@@ -8,7 +8,10 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
   {% block head %}{% endblock %}
 </head>
-<body data-currency="{{ currency }}" data-cart-url="{{ url_for('main.cart') }}" data-browse-url="{{ url_for('main.browse') }}">
+<body data-currency="{{ currency }}" data-cart-url="{{ url_for('main.cart') }}" data-browse-url="{{ url_for('main.browse') }}"
+      data-checkout-url="{{ url_for('payments.start_stk_push') }}"
+      data-payment-status-url="{{ url_for('payments.payment_status', checkout_id='CHECKOUT_ID') }}"
+      data-csrf-token="{{ csrf_token() }}">
   <header>
     <div class="wrap bar">
       <!-- Logo: left -->

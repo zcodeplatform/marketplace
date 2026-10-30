@@ -9,7 +9,7 @@ const money = (n) =>
 const esc = (s) =>
   String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-const state = { lines: load(), done: false };
+const state = { lines: load(), done: false, payment: loadPayment() };
 
 function load() {
   try {
@@ -21,6 +21,20 @@ function load() {
 }
 function save() {
   try { localStorage.setItem(CART_KEY, JSON.stringify(state.lines)); } catch {}
+}
+function loadPayment() {
+  try {
+    const payment = JSON.parse(sessionStorage.getItem("marketplace-payment") || "null");
+    return payment && payment.checkout_id ? payment : null;
+  } catch {
+    return null;
+  }
+}
+function savePayment() {
+  try {
+    if (state.payment) sessionStorage.setItem("marketplace-payment", JSON.stringify(state.payment));
+    else sessionStorage.removeItem("marketplace-payment");
+  } catch {}
 }
 const count = () => state.lines.reduce((n, l) => n + l.qty, 0);
 
@@ -117,8 +131,8 @@ function paintCart() {
   if (state.done) {
     body.innerHTML = `<div class="done">
       <span class="done-mark" aria-hidden="true">✓</span>
-      <p>All set</p>
-      <span>This is a demo checkout. Nothing was charged, and your bag is clear.</span>
+      <p>Payment received</p>
+      <span>Your order payment was confirmed by M-Pesa.</span>
       <a class="btn" href="${esc(document.body.dataset.browseUrl)}" data-back>Back to the shop</a>
     </div>`;
     body.querySelector("[data-back]").onclick = () => { state.done = false; };
@@ -144,21 +158,19 @@ function paintCart() {
     <div class="checkout">
       <p class="delivery-caption">Delivery details are agreed with each seller.</p>
       <div class="subtotal"><span class="muted">Subtotal</span><strong>${money(total)}</strong></div>
-      <a class="cart-full-link" href="${esc(document.body.dataset.cartUrl)}">View full cart</a>
-      <button class="btn" type="button" data-checkout>Checkout (demo)</button>
+      <a class="btn" href="${esc(document.body.dataset.cartUrl)}">Continue to checkout</a>
     </div>`;
   const qtyOf = (id) => state.lines.find((l) => l.id === id).qty;
   body.querySelectorAll("[data-remove]").forEach((b) => (b.onclick = () => setQty(b.dataset.remove, 0)));
   body.querySelectorAll("[data-dec]").forEach((b) => (b.onclick = () => setQty(b.dataset.dec, qtyOf(b.dataset.dec) - 1)));
   body.querySelectorAll("[data-inc]").forEach((b) => (b.onclick = () => setQty(b.dataset.inc, qtyOf(b.dataset.inc) + 1)));
-  body.querySelector("[data-checkout]").onclick = finishCheckout;
 }
 
 function paintCartPage() {
   const page = document.querySelector("[data-cart-page]");
   if (!page) return;
 
-  if (!state.lines.length && !state.done) {
+  if (!state.lines.length && !state.done && !(state.payment && state.payment.status === "pending")) {
     page.innerHTML = `<div class="cart-empty">
       <span class="cart-empty-icon" aria-hidden="true"><svg viewBox="0 0 48 48" fill="none"><path d="M10 17h28l2 25H8l2-25Z" stroke="currentColor" stroke-width="1.7"/><path d="M17 19v-5a7 7 0 0 1 14 0v5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></span>
       <p class="cart-empty-title">Your cart is empty</p>
@@ -171,14 +183,16 @@ function paintCartPage() {
   if (state.done) {
     page.innerHTML = `<div class="cart-empty">
       <span class="done-mark" aria-hidden="true">✓</span>
-      <p class="cart-empty-title">Demo checkout complete</p>
-      <p class="cart-empty-copy">No payment was taken. Your cart is clear.</p>
+      <p class="cart-empty-title">Payment received</p>
+      <p class="cart-empty-copy">M-Pesa confirmed your payment. Thank you for your order.</p>
       <a class="btn" href="${esc(document.body.dataset.browseUrl)}">Continue shopping</a>
     </div>`;
     return;
   }
 
   const total = state.lines.reduce((sum, line) => sum + line.price * line.qty, 0);
+  const pending = state.payment && state.payment.status === "pending";
+  const failed = state.payment && state.payment.status === "failed";
   page.innerHTML = `
     <div class="cart-page-layout">
       <section class="cart-page-items" aria-label="Cart items">
@@ -202,8 +216,19 @@ function paintCartPage() {
         <h2>Order summary</h2>
         <div class="subtotal"><span>Subtotal</span><strong>${money(total)}</strong></div>
         <p>Delivery details are agreed with each seller.</p>
-        <button class="btn" type="button" data-checkout>Checkout (demo)</button>
-        <small>Checkout is a demo. No payment will be taken.</small>
+        ${pending ? `
+          <div class="payment-message" role="status" data-payment-status>Waiting for M-Pesa confirmation…</div>
+          <small>Amount: ${money(state.payment.amount)} · Prompt reference: ${esc(state.payment.reference)}</small>
+        ` : `
+          ${failed ? `<div class="payment-message payment-error" role="status">${esc(state.payment.message || "Payment was not completed. Try again.")}</div>` : ""}
+          <form class="checkout-form" data-checkout-form>
+            <label for="checkout-phone">M-Pesa phone number</label>
+            <input id="checkout-phone" name="phone" type="tel" autocomplete="tel" placeholder="0712345678" required />
+            <button class="btn" type="submit">Pay with M-Pesa</button>
+            <small>You’ll receive a payment prompt on your phone. The final amount is checked against current product prices.</small>
+          </form>
+        `}
+        <div class="payment-message" role="status" data-checkout-status></div>
       </aside>
     </div>`;
 
@@ -211,16 +236,108 @@ function paintCartPage() {
   page.querySelectorAll("[data-remove]").forEach((button) => (button.onclick = () => setQty(button.dataset.remove, 0)));
   page.querySelectorAll("[data-dec]").forEach((button) => (button.onclick = () => setQty(button.dataset.dec, qtyOf(button.dataset.dec) - 1)));
   page.querySelectorAll("[data-inc]").forEach((button) => (button.onclick = () => setQty(button.dataset.inc, qtyOf(button.dataset.inc) + 1)));
-  page.querySelector("[data-checkout]").onclick = finishCheckout;
+  const form = page.querySelector("[data-checkout-form]");
+  if (form) form.addEventListener("submit", startCheckout);
 }
 
-function finishCheckout() {
-  state.lines = [];
-  state.done = true;
-  save();
-  paintCount();
-  paintCart();
-  paintCartPage();
+async function startCheckout(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const button = form.querySelector('button[type="submit"]');
+  const status = document.querySelector("[data-checkout-status]");
+  const cents = state.lines.reduce((sum, line) => sum + Math.round(Number(line.price) * 100) * line.qty, 0);
+  button.disabled = true;
+  status.textContent = "Checking your cart and contacting M-Pesa…";
+
+  try {
+    const response = await fetch(document.body.dataset.checkoutUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": document.body.dataset.csrfToken,
+      },
+      body: JSON.stringify({
+        phone: form.elements.phone.value,
+        expected_total: (cents / 100).toFixed(2),
+        items: state.lines.map((line) => ({ id: Number(line.id), qty: line.qty })),
+      }),
+    });
+    const data = await response.json();
+    if (response.status === 409 && data.items) {
+      const currentLines = new Map(state.lines.map((line) => [String(line.id), line]));
+      state.lines = data.items.map((item) => ({
+        ...currentLines.get(String(item.id)),
+        ...item,
+        id: String(item.id),
+        price: Number(item.price),
+      }));
+      save();
+      paintCount();
+      paintCartPage();
+      document.querySelector("[data-checkout-status]").textContent = data.error;
+      return;
+    }
+    if (!response.ok) throw new Error(data.error || "Could not start M-Pesa checkout.");
+
+    state.payment = {
+      checkout_id: data.checkout_id,
+      reference: data.reference,
+      amount: data.amount,
+      status: "pending",
+      items: state.lines.map((line) => ({ id: String(line.id), qty: line.qty })),
+    };
+    savePayment();
+    paintCartPage();
+    await pollPayment();
+  } catch (error) {
+    status.textContent = error.message || "Could not start M-Pesa checkout. Please try again.";
+  } finally {
+    if (button.isConnected) button.disabled = false;
+  }
+}
+
+async function pollPayment() {
+  if (!state.payment || !document.querySelector("[data-payment-status]")) return;
+  const url = document.body.dataset.paymentStatusUrl.replace(
+    "CHECKOUT_ID",
+    encodeURIComponent(state.payment.checkout_id),
+  );
+  const notice = document.querySelector("[data-payment-status]");
+
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    if (attempt) await new Promise((resolve) => setTimeout(resolve, 3000));
+    try {
+      const response = await fetch(url);
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Could not check payment status.");
+      if (data.status === "success") {
+        const paid = new Map(state.payment.items.map((item) => [item.id, item.qty]));
+        state.lines = state.lines
+          .map((line) => ({ ...line, qty: line.qty - (paid.get(String(line.id)) || 0) }))
+          .filter((line) => line.qty > 0);
+        state.payment = null;
+        state.done = true;
+        savePayment();
+        save();
+        paintCount();
+        paintCart();
+        paintCartPage();
+        return;
+      }
+      if (data.status === "failed") {
+        state.payment.status = "failed";
+        state.payment.message = data.message;
+        savePayment();
+        paintCartPage();
+        return;
+      }
+      notice.textContent = data.message || "Waiting for M-Pesa confirmation…";
+    } catch (error) {
+      notice.textContent = error.message || "Could not check payment status.";
+      return;
+    }
+  }
+  notice.textContent = "Payment is still pending. Keep this page open or return later to check again.";
 }
 
 // "Add to bag" buttons on any page (event delegation).
@@ -258,6 +375,7 @@ document.querySelectorAll("[data-share]").forEach((btn) => {
 
 paintCount();
 paintCartPage();
+if (state.payment && state.payment.status === "pending") pollPayment();
 
 const liveSearch = document.querySelector("[data-live-search]");
 const productResults = document.querySelector("#product-results");

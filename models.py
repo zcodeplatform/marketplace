@@ -96,3 +96,18 @@ class Product(db.Model):
             slug = f"{base}-{n}"
             n += 1
         return slug
+
+
+class Payment(db.Model):
+    __tablename__ = "payments"
+
+    id = db.Column(db.Integer, primary_key=True)
+    reference = db.Column(db.String(12), unique=True, nullable=False, index=True)
+    checkout_request_id = db.Column(db.String(255), unique=True, nullable=True, index=True)
+    merchant_request_id = db.Column(db.String(255), nullable=True)
+    phone_number = db.Column(db.String(12), nullable=False)
+    amount = db.Column(db.Integer, nullable=False)
+    items_json = db.Column(db.Text, nullable=False)
+    mpesa_response = db.Column(db.Text, nullable=True)
+    status = db.Column(db.String(10), nullable=False, default="pending", index=True)
+    created_at = db.Column(db.DateTime, default=_now, nullable=False)
