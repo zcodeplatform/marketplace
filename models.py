@@ -64,6 +64,9 @@ class User(UserMixin, db.Model):
     payment_shares = db.relationship(
         "PaymentSeller", back_populates="seller", lazy="dynamic",
     )
+    checkout_payments = db.relationship(
+        "Payment", back_populates="buyer", lazy="dynamic", foreign_keys="Payment.buyer_id",
+    )
     listing_plan_payments = db.relationship(
         "ListingPlanPayment", back_populates="seller", lazy="dynamic",
     )
@@ -149,7 +152,9 @@ class Payment(db.Model):
     mpesa_response = db.Column(db.Text, nullable=True)
     status = db.Column(db.String(12), nullable=False, default="pending", index=True)
     created_at = db.Column(db.DateTime, default=_now, nullable=False)
+    buyer_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
 
+    buyer = db.relationship("User", back_populates="checkout_payments", foreign_keys=[buyer_id])
     seller_shares = db.relationship(
         "PaymentSeller", back_populates="payment", cascade="all, delete-orphan",
     )

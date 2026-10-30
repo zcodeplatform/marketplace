@@ -90,6 +90,12 @@ def _cart_snapshot(quantities):
 
 @bp.post("/api/checkout/stk")
 def start_stk_push():
+    if not current_user.is_authenticated:
+        return jsonify(
+            error="Sign in to complete checkout.",
+            login_url=url_for("auth.login", next=url_for("main.cart")),
+        ), 401
+
     data = request.get_json(silent=True)
     quantities, error = _parse_cart(data)
     if error:
@@ -131,6 +137,7 @@ def start_stk_push():
         amount=int(total),
         items_json=json.dumps(items),
         status="pending",
+        buyer_id=current_user.id,
     )
     payment.seller_shares = [
         PaymentSeller(
@@ -285,7 +292,7 @@ def check_listing_plan_payment(payment_id):
 
 
 def _set_listing_plan_payment_result(payment, result_code, data):
-    if payment.paid_at is not None:
+    if payment.status != "pending":
         return
     payment.status = "success" if result_code == 0 else "cancelled" if result_code == 1032 else "failed"
     payment.mpesa_response = json.dumps(data)
@@ -347,13 +354,16 @@ def mpesa_callback():
         current_app.logger.warning("Received M-Pesa callback for unknown checkout request")
         return jsonify(ResultCode=1, ResultDesc="Payment not found"), 404
 
-    if result_code == 0:
-        payment.status = "success"
-    elif result_code == 1032:
-        payment.status = "cancelled"
+    if payment.status == "pending":
+        if result_code == 0:
+            payment.status = "success"
+        elif result_code == 1032:
+            payment.status = "cancelled"
+        else:
+            payment.status = "failed"
+        payment.mpesa_response = json.dumps(data)
     else:
-        payment.status = "failed"
-    payment.mpesa_response = json.dumps(data)
+        current_app.logger.info("Ignoring duplicate terminal M-Pesa callback for %s", payment.reference)
     try:
         db.session.commit()
     except SQLAlchemyError:
@@ -364,8 +374,12 @@ def mpesa_callback():
 
 
 @bp.post("/api/payments/<checkout_id>/query")
+@login_required
 def query_payment(checkout_id):
-    payment = Payment.query.filter_by(checkout_request_id=checkout_id).first()
+    payment = Payment.query.filter_by(
+        checkout_request_id=checkout_id,
+        buyer_id=current_user.id,
+    ).first()
     if not payment:
         return jsonify(error="Payment not found."), 404
     if payment.status != "pending":
@@ -387,13 +401,14 @@ def query_payment(checkout_id):
     except (TypeError, ValueError):
         return jsonify(status="pending", message="M-Pesa returned an unrecognized status. Try again.")
 
-    if result_code == 0:
-        payment.status = "success"
-    elif result_code == 1032:
-        payment.status = "cancelled"
-    else:
-        payment.status = "failed"
-    payment.mpesa_response = json.dumps(data)
+    if payment.status == "pending":
+        if result_code == 0:
+            payment.status = "success"
+        elif result_code == 1032:
+            payment.status = "cancelled"
+        else:
+            payment.status = "failed"
+        payment.mpesa_response = json.dumps(data)
     try:
         db.session.commit()
     except SQLAlchemyError:
@@ -404,8 +419,12 @@ def query_payment(checkout_id):
 
 
 @bp.get("/api/payments/<checkout_id>")
+@login_required
 def payment_status(checkout_id):
-    payment = Payment.query.filter_by(checkout_request_id=checkout_id).first()
+    payment = Payment.query.filter_by(
+        checkout_request_id=checkout_id,
+        buyer_id=current_user.id,
+    ).first()
     if not payment:
         return jsonify(error="Payment not found."), 404
 

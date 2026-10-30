@@ -165,5 +165,37 @@
   {% else %}
     <p class="empty-note">No sales payment transactions yet. New customer checkouts will appear here.</p>
   {% endif %}
+
+  <div class="section-head">
+    <h2>Purchase payment history <span class="muted">({{ purchase_payment_history|length }})</span></h2>
+  </div>
+  <p class="payment-history-note">Your customer checkout records, including pending, successful, failed, and canceled payments.</p>
+  {% if purchase_payment_history %}
+  <ul class="seller-payment-history">
+    {% for entry in purchase_payment_history %}
+    {% set payment = entry.payment %}
+    <li class="seller-payment">
+      <div class="seller-payment-head">
+        <div>
+          <strong>Order {{ payment.reference }}</strong>
+          <p class="muted">{{ payment.created_at.strftime('%b %d, %Y at %H:%M') }}</p>
+        </div>
+        <span class="status-pill status-{{ payment.status }}">{{ payment.status }}</span>
+      </div>
+      <ul class="seller-payment-items">
+        {% for item in entry.line_items %}
+        <li>{{ item.name }} <span>× {{ item.qty }}</span></li>
+        {% endfor %}
+      </ul>
+      <div class="seller-payment-total">
+        <span>Order total</span>
+        <strong>{{ payment.amount|money }}</strong>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+    <p class="empty-note">No purchase transactions yet. Your checkout history will appear here.</p>
+  {% endif %}
 </section>
 {% endblock %}

@@ -8,6 +8,7 @@ from unittest.mock import Mock, patch
 
 from app import _migrate_product_categories, create_app
 from extensions import db
+from flask import g
 from models import (
     CATEGORIES,
     LISTING_PLAN_DAYS,
@@ -64,6 +65,7 @@ class PaymentCheckoutTests(unittest.TestCase):
         db.session.add(self.product)
         db.session.commit()
         self.client = self.app.test_client()
+        self._login(self.seller)
 
     def tearDown(self):
         db.session.remove()
@@ -86,6 +88,11 @@ class PaymentCheckoutTests(unittest.TestCase):
         page = self.client.get("/cart")
         return re.search(rb'data-csrf-token="([^"]+)"', page.data).group(1).decode()
 
+    def _login(self, user):
+        with self.client.session_transaction() as session:
+            session["_user_id"] = str(user.id)
+            session["_fresh"] = True
+
     @patch("payments.stk_push")
     def test_checkout_uses_server_price_and_normalizes_phone(self, push):
         push.return_value = {
@@ -100,8 +107,109 @@ class PaymentCheckoutTests(unittest.TestCase):
         self.assertEqual(response.json["amount"], 10)
         push.assert_called_once_with("254712345678", 10, response.json["reference"])
         self.assertEqual(Payment.query.one().status, "pending")
+        self.assertEqual(Payment.query.one().buyer_id, self.seller.id)
         self.assertEqual(PaymentSeller.query.one().seller_id, self.seller.id)
         self.assertEqual(PaymentSeller.query.one().amount, Decimal("10.00"))
+
+    def test_checkout_is_rejected_without_login_and_creates_no_payment(self):
+        token = self._csrf_token()
+        with self.client.session_transaction() as session:
+            session.pop("_user_id", None)
+            session.pop("_fresh", None)
+        g.pop("_login_user", None)
+
+        with patch("payments.stk_push") as push:
+            response = self.client.post(
+                "/api/checkout/stk",
+                json={
+                    "phone": "0712345678",
+                    "expected_total": "10.00",
+                    "items": [{"id": self.product.id, "qty": 1}],
+                },
+                headers={"X-CSRFToken": token},
+            )
+
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.json["login_url"], "/login?next=/cart")
+        self.assertEqual(Payment.query.count(), 0)
+        push.assert_not_called()
+
+    def test_checkout_payment_history_is_shown_to_buyer(self):
+        payment = Payment(
+            reference="MPBUYER123",
+            phone_number="254712345678",
+            amount=10,
+            items_json=json.dumps([{"name": "Purchased item", "qty": 1}]),
+            status="failed",
+            buyer_id=self.seller.id,
+        )
+        db.session.add(payment)
+        db.session.commit()
+
+        response = self.client.get("/profile")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Purchase payment history", response.data)
+        self.assertIn(b"MPBUYER123", response.data)
+        self.assertIn(b"Purchased item", response.data)
+        self.assertIn(b"failed", response.data)
+
+    def test_buyer_cannot_read_another_users_payment_status(self):
+        other_buyer = User(name="Other buyer", email="buyer@example.test")
+        db.session.add(other_buyer)
+        db.session.flush()
+        payment = Payment(
+            reference="MPPRIVATE123",
+            checkout_request_id="ws_CO_private",
+            phone_number="254712345678",
+            amount=10,
+            items_json="[]",
+            buyer_id=other_buyer.id,
+        )
+        db.session.add(payment)
+        db.session.commit()
+
+        response = self.client.get("/api/payments/ws_CO_private")
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_duplicate_callback_does_not_change_terminal_payment_status(self):
+        payment = Payment(
+            reference="MPDUPLICATE",
+            checkout_request_id="ws_CO_duplicate",
+            phone_number="254712345678",
+            amount=10,
+            items_json="[]",
+            buyer_id=self.seller.id,
+        )
+        db.session.add(payment)
+        db.session.commit()
+        checkout_id = payment.checkout_request_id
+        success = {
+            "Body": {
+                "stkCallback": {
+                    "CheckoutRequestID": checkout_id,
+                    "ResultCode": 0,
+                    "ResultDesc": "Paid",
+                },
+            },
+        }
+        failed = {
+            "Body": {
+                "stkCallback": {
+                    "CheckoutRequestID": checkout_id,
+                    "ResultCode": 1,
+                    "ResultDesc": "Failed",
+                },
+            },
+        }
+
+        self.assertEqual(self.client.post("/mpesa/callback", json=success).status_code, 200)
+        self.assertEqual(self.client.post("/mpesa/callback", json=failed).status_code, 200)
+
+        payment = Payment.query.one()
+        self.assertEqual(payment.status, "success")
+        self.assertIn("Paid", payment.mpesa_response)
 
     @patch("payments.stk_push")
     def test_multi_seller_checkout_records_each_seller_share(self, push):

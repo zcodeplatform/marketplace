@@ -192,6 +192,7 @@ function paintCartPage() {
   }
 
   const total = state.lines.reduce((sum, line) => sum + line.price * line.qty, 0);
+  const authenticated = document.body.dataset.authenticated === "true";
   const pending = state.payment && state.payment.status === "pending";
   const failed = state.payment && ["failed", "cancelled"].includes(state.payment.status);
   page.innerHTML = `
@@ -217,7 +218,7 @@ function paintCartPage() {
         <h2>Order summary</h2>
         <div class="subtotal"><span>Subtotal</span><strong>${money(total)}</strong></div>
         <p>Delivery details are agreed with each seller.</p>
-        ${pending ? `
+        ${pending && authenticated ? `
           <div class="payment-message" role="status" data-payment-status>Waiting for M-Pesa confirmation…</div>
           <small>Amount: ${money(state.payment.amount)} · Prompt reference: ${esc(state.payment.reference)}</small>
           <div class="payment-actions">
@@ -225,14 +226,25 @@ function paintCartPage() {
             <a class="cart-full-link" href="${esc(document.body.dataset.browseUrl)}">Continue shopping</a>
           </div>
           <small>M-Pesa has not confirmed whether this payment completed. Don’t start another payment until this one is confirmed failed or canceled.</small>
+        ` : pending ? `
+          <div class="payment-message" role="status">Sign in to check the status of your pending payment.</div>
+          <a class="btn" href="${esc(document.body.dataset.loginUrl)}">Sign in to continue</a>
         ` : `
           ${failed ? `<div class="payment-message payment-error" role="status">${state.payment.status === "cancelled" ? "You canceled the M-Pesa prompt. No payment was completed." : `Payment failed: ${esc(state.payment.message || "The payment was not completed.")}`}</div>` : ""}
+          ${authenticated ? `
           <form class="checkout-form" data-checkout-form>
             <label for="checkout-phone">M-Pesa phone number</label>
             <input id="checkout-phone" name="phone" type="tel" autocomplete="tel" placeholder="0712345678" required />
             <button class="btn" type="submit">Pay with M-Pesa</button>
             <small>You’ll receive a payment prompt on your phone. The final amount is checked against current product prices.</small>
           </form>
+          ` : `
+          <div class="checkout-signin">
+            <p>Sign in or create an account to place your order and track its payment.</p>
+            <a class="btn" href="${esc(document.body.dataset.loginUrl)}">Sign in to checkout</a>
+            <a class="cart-full-link" href="/signup?next=%2Fcart">Create an account</a>
+          </div>
+          `}
         `}
         <div class="payment-message" role="status" data-checkout-status></div>
       </aside>
@@ -271,6 +283,10 @@ async function startCheckout(event) {
       }),
     });
     const data = await response.json();
+    if (response.status === 401) {
+      window.location.assign(data.login_url || document.body.dataset.loginUrl);
+      return;
+    }
     if (response.status === 409 && data.items) {
       const currentLines = new Map(state.lines.map((line) => [String(line.id), line]));
       state.lines = data.items.map((item) => ({

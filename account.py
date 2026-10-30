@@ -36,6 +36,17 @@ def view():
         {"share": share, "line_items": json.loads(share.items_json)}
         for share in seller_payments
     ]
+    purchase_payments = current_user.checkout_payments.order_by(
+        Payment.created_at.desc(),
+        Payment.id.desc(),
+    ).all()
+    purchase_history = [
+        {
+            "payment": payment,
+            "line_items": json.loads(payment.items_json),
+        }
+        for payment in purchase_payments
+    ]
     products = current_user.products.all()
     free_product_ids = {
         product_id
@@ -63,6 +74,7 @@ def view():
         listing_plan_price=LISTING_PLAN_PRICE,
         listing_plan_days=LISTING_PLAN_DAYS,
         seller_payment_history=history,
+        purchase_payment_history=purchase_history,
     )
 
 

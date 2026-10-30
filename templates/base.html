@@ -12,6 +12,8 @@
       data-checkout-url="{{ url_for('payments.start_stk_push') }}"
       data-payment-status-url="{{ url_for('payments.payment_status', checkout_id='CHECKOUT_ID') }}"
       data-payment-query-url="{{ url_for('payments.query_payment', checkout_id='CHECKOUT_ID') }}"
+      data-login-url="{{ url_for('auth.login', next=url_for('main.cart')) }}"
+      data-authenticated="{{ 'true' if current_user.is_authenticated else 'false' }}"
       data-csrf-token="{{ csrf_token() }}">
   <div class="page-loader" data-page-loader role="status" aria-live="polite" aria-label="Loading page" hidden>
     <span class="page-loader-spinner" aria-hidden="true"></span>

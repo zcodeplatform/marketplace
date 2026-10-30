@@ -72,6 +72,7 @@ def create_app(config_object=None):
 
     with app.app_context():
         db.create_all()
+        _migrate_payment_buyer_id()
         _migrate_product_categories()
     return app
 
@@ -97,6 +98,27 @@ def _migrate_product_categories():
         changed = changed or updated > 0
     if changed:
         db.session.commit()
+
+
+def _migrate_payment_buyer_id():
+    """Add buyer ownership to existing payment tables without losing payment history."""
+    from sqlalchemy import inspect
+    from models import Payment
+
+    inspector = inspect(db.engine)
+    if "payments" not in inspector.get_table_names():
+        return
+    columns = {column["name"] for column in inspector.get_columns("payments")}
+    if "buyer_id" not in columns:
+        with db.engine.begin() as connection:
+            connection.exec_driver_sql(
+                "ALTER TABLE payments ADD COLUMN buyer_id INTEGER REFERENCES users(id)"
+            )
+    buyer_index = next(
+        index for index in Payment.__table__.indexes
+        if any(column.name == "buyer_id" for column in index.columns)
+    )
+    buyer_index.create(db.engine, checkfirst=True)
 
 
 def register_cli(app):
