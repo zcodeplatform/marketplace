@@ -7,7 +7,17 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 from extensions import db, login_manager
 
-CATEGORIES = ["Home", "Table", "Light", "Wear", "Scent", "Electronics", "Books", "Other"]
+CATEGORIES = [
+    "Electronics",
+    "Home & Furniture",
+    "Clothing & Shoes",
+    "Food & Groceries",
+    "Beauty & Personal Care",
+    "Books & Stationery",
+    "Sports & Outdoors",
+    "Toys & Games",
+    "Other",
+]
 STATUS_ACTIVE = "active"
 STATUS_SOLD = "sold"
 
@@ -109,5 +119,5 @@ class Payment(db.Model):
     amount = db.Column(db.Integer, nullable=False)
     items_json = db.Column(db.Text, nullable=False)
     mpesa_response = db.Column(db.Text, nullable=True)
-    status = db.Column(db.String(10), nullable=False, default="pending", index=True)
+    status = db.Column(db.String(12), nullable=False, default="pending", index=True)
     created_at = db.Column(db.DateTime, default=_now, nullable=False)

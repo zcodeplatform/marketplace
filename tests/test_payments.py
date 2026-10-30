@@ -1,13 +1,14 @@
+import html
 import json
 import re
 import unittest
 from decimal import Decimal
 from unittest.mock import Mock, patch
 
-from app import create_app
+from app import _migrate_product_categories, create_app
 from extensions import db
-from models import Payment, Product, User
-from mpesa import stk_push
+from models import CATEGORIES, Payment, Product, User
+from mpesa import stk_push, stk_query
 
 
 class TestConfig:
@@ -58,8 +59,7 @@ class PaymentCheckoutTests(unittest.TestCase):
         self.context.pop()
 
     def _checkout(self, phone="0712345678", expected_total="10.00"):
-        page = self.client.get("/cart")
-        token = re.search(rb'data-csrf-token="([^"]+)"', page.data).group(1).decode()
+        token = self._csrf_token()
         return self.client.post(
             "/api/checkout/stk",
             json={
@@ -69,6 +69,10 @@ class PaymentCheckoutTests(unittest.TestCase):
             },
             headers={"X-CSRFToken": token},
         )
+
+    def _csrf_token(self):
+        page = self.client.get("/cart")
+        return re.search(rb'data-csrf-token="([^"]+)"', page.data).group(1).decode()
 
     @patch("payments.stk_push")
     def test_checkout_uses_server_price_and_normalizes_phone(self, push):
@@ -111,6 +115,24 @@ class PaymentCheckoutTests(unittest.TestCase):
         self.assertIn(b"data-checkout-url", response.data)
         self.assertIn(b"data-csrf-token", response.data)
 
+    def test_major_categories_are_visible_on_home_and_browse(self):
+        for path in ("/", "/browse"):
+            response = self.client.get(path)
+            self.assertEqual(response.status_code, 200)
+            page = html.unescape(response.get_data(as_text=True))
+            for category in CATEGORIES:
+                self.assertIn(category, page)
+
+    def test_existing_narrow_categories_are_migrated(self):
+        self.product.category = "Table"
+        db.session.commit()
+
+        _migrate_product_categories()
+
+        db.session.refresh(self.product)
+        self.assertEqual(self.product.category, "Home & Furniture")
+        self.assertIn(self.product.category, CATEGORIES)
+
     def test_checkout_requires_csrf_token(self):
         response = self.client.post(
             "/api/checkout/stk",
@@ -145,6 +167,27 @@ class PaymentCheckoutTests(unittest.TestCase):
         self.assertEqual(payload["CallBackURL"], TestConfig.MPESA_CALLBACK_URL)
         self.assertEqual(payload["AccountReference"], "MP12345678")
 
+    def test_stk_query_sends_daraja_status_request(self):
+        token_response = Mock()
+        token_response.json.return_value = {"access_token": "access-token"}
+        query_response = Mock()
+        query_response.json.return_value = {
+            "ResponseCode": "0",
+            "ResultCode": "1032",
+            "ResultDesc": "The user has cancelled the request.",
+        }
+
+        with patch("mpesa.requests.get", return_value=token_response):
+            with patch("mpesa.requests.post", return_value=query_response) as send_query:
+                result = stk_query("ws_CO_test")
+
+        self.assertEqual(result["ResultCode"], "1032")
+        self.assertEqual(
+            send_query.call_args.args[0],
+            "https://sandbox.safaricom.co.ke/mpesa/stkpushquery/v1/query",
+        )
+        self.assertEqual(send_query.call_args.kwargs["json"]["CheckoutRequestID"], "ws_CO_test")
+
     @patch("payments.stk_push")
     def test_callback_updates_payment_status(self, push):
         push.return_value = {
@@ -171,6 +214,81 @@ class PaymentCheckoutTests(unittest.TestCase):
         self.assertEqual(Payment.query.one().status, "success")
         status = self.client.get(f"/api/payments/{checkout.json['checkout_id']}")
         self.assertEqual(status.json["status"], "success")
+
+    @patch("payments.stk_push")
+    def test_callback_marks_user_cancellation(self, push):
+        push.return_value = {
+            "ResponseCode": "0",
+            "CheckoutRequestID": "ws_CO_cancel",
+            "MerchantRequestID": "merchant_cancel",
+        }
+        checkout = self._checkout()
+        callback = self.client.post(
+            "/mpesa/callback",
+            json={
+                "Body": {
+                    "stkCallback": {
+                        "CheckoutRequestID": checkout.json["checkout_id"],
+                        "ResultCode": 1032,
+                        "ResultDesc": "Request cancelled by user",
+                    },
+                },
+            },
+        )
+
+        self.assertEqual(callback.status_code, 200)
+        status = self.client.get(f"/api/payments/{checkout.json['checkout_id']}")
+        self.assertEqual(status.json["status"], "cancelled")
+        self.assertEqual(status.json["message"], "Request cancelled by user")
+
+    @patch("payments.stk_query")
+    @patch("payments.stk_push")
+    def test_manual_query_marks_cancellation(self, push, query):
+        push.return_value = {
+            "ResponseCode": "0",
+            "CheckoutRequestID": "ws_CO_query",
+            "MerchantRequestID": "merchant_query",
+        }
+        checkout = self._checkout()
+        query.return_value = {
+            "ResponseCode": "0",
+            "ResultCode": "1032",
+            "ResultDesc": "The user has cancelled the request.",
+        }
+
+        response = self.client.post(
+            f"/api/payments/{checkout.json['checkout_id']}/query",
+            headers={"X-CSRFToken": self._csrf_token()},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["status"], "cancelled")
+        self.assertEqual(Payment.query.one().status, "cancelled")
+        query.assert_called_once_with(checkout.json["checkout_id"])
+
+    @patch("payments.stk_query")
+    @patch("payments.stk_push")
+    def test_manual_query_without_result_keeps_payment_pending(self, push, query):
+        push.return_value = {
+            "ResponseCode": "0",
+            "CheckoutRequestID": "ws_CO_pending",
+            "MerchantRequestID": "merchant_pending",
+        }
+        checkout = self._checkout()
+        query.return_value = {
+            "ResponseCode": "0",
+            "ResponseDescription": "The service request has been accepted successfully",
+        }
+
+        response = self.client.post(
+            f"/api/payments/{checkout.json['checkout_id']}/query",
+            headers={"X-CSRFToken": self._csrf_token()},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["status"], "pending")
+        self.assertIn("has not confirmed", response.json["message"])
+        self.assertEqual(Payment.query.one().status, "pending")
 
 
 if __name__ == "__main__":

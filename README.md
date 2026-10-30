@@ -23,9 +23,9 @@ The "Continue with Google" button only appears once both values are set.
 1. In the Safaricom Daraja portal, create an app and get its consumer key and secret, Lipa Na M-Pesa passkey, and shortcode.
 2. Set `MPESA_CONSUMER_KEY`, `MPESA_CONSUMER_SECRET`, `MPESA_PASSKEY`, and `MPESA_SHORTCODE` in `.env`. Sandbox uses shortcode `174379`; leave `MPESA_BASE_URL` as `https://sandbox.safaricom.co.ke` for sandbox transactions.
 3. Set `MPESA_CALLBACK_URL` to a publicly reachable HTTPS URL ending in `/mpesa/callback`. For local testing, expose port 5000 with a tunnel and use that HTTPS URL.
-4. Restart Flask. On checkout, enter a Kenyan M-Pesa number; the app calculates the amount from current active product prices, sends the STK prompt, and updates the payment when Safaricom calls back.
+4. Restart Flask. On checkout, enter a Kenyan M-Pesa number; the app calculates the amount from current active product prices, sends the STK prompt, and updates the payment when Safaricom calls back. The checkout checks for a callback briefly, then stops automatic polling; use **Check M-Pesa now** to query Daraja directly if the callback has not arrived.
 
-The callback must be reachable by Safaricom. Do not use production credentials with the sandbox URL (or vice versa). M-Pesa STK amounts must be whole Kenyan shillings; checkout rejects fractional totals. Successful payments are stored in the `payments` table with a cart snapshot and payment status.
+The callback must be reachable by Safaricom; `localhost` and `127.0.0.1` are not reachable from Safaricom, so use a public HTTPS tunnel during local development. Do not use production credentials with the sandbox URL (or vice versa). A canceled prompt is recorded separately from other failures when Daraja reports cancellation. M-Pesa STK amounts must be whole Kenyan shillings; checkout rejects fractional totals. Successful payments are stored in the `payments` table with a cart snapshot and payment status.
 
 ## Layout
 - `app.py` app factory, CLI seed command · `config.py` · `extensions.py` · `models.py` · `utils.py`

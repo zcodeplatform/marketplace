@@ -8,7 +8,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from extensions import csrf, db
 from models import STATUS_ACTIVE, Payment, Product
-from mpesa import MpesaError, stk_push
+from mpesa import MpesaError, stk_push, stk_query
 
 bp = Blueprint("payments", __name__)
 
@@ -172,7 +172,12 @@ def mpesa_callback():
         current_app.logger.warning("Received M-Pesa callback for unknown checkout request")
         return jsonify(ResultCode=1, ResultDesc="Payment not found"), 404
 
-    payment.status = "success" if result_code == 0 else "failed"
+    if result_code == 0:
+        payment.status = "success"
+    elif result_code == 1032:
+        payment.status = "cancelled"
+    else:
+        payment.status = "failed"
     payment.mpesa_response = json.dumps(data)
     try:
         db.session.commit()
@@ -183,14 +188,61 @@ def mpesa_callback():
     return jsonify(ResultCode=0, ResultDesc="Success")
 
 
+@bp.post("/api/payments/<checkout_id>/query")
+def query_payment(checkout_id):
+    payment = Payment.query.filter_by(checkout_request_id=checkout_id).first()
+    if not payment:
+        return jsonify(error="Payment not found."), 404
+    if payment.status != "pending":
+        return _payment_status_response(payment)
+
+    try:
+        data = stk_query(checkout_id)
+    except MpesaError as error:
+        return jsonify(status="pending", message=str(error)), 502
+
+    raw_result_code = data.get("ResultCode")
+    if raw_result_code is None:
+        return jsonify(
+            status="pending",
+            message="M-Pesa has not confirmed the payment yet. Check your phone for the prompt.",
+        )
+    try:
+        result_code = int(raw_result_code)
+    except (TypeError, ValueError):
+        return jsonify(status="pending", message="M-Pesa returned an unrecognized status. Try again.")
+
+    if result_code == 0:
+        payment.status = "success"
+    elif result_code == 1032:
+        payment.status = "cancelled"
+    else:
+        payment.status = "failed"
+    payment.mpesa_response = json.dumps(data)
+    try:
+        db.session.commit()
+    except SQLAlchemyError:
+        db.session.rollback()
+        current_app.logger.exception("Could not save M-Pesa query result")
+        return jsonify(error="Could not save the M-Pesa result. Please check again."), 500
+    return _payment_status_response(payment)
+
+
 @bp.get("/api/payments/<checkout_id>")
 def payment_status(checkout_id):
     payment = Payment.query.filter_by(checkout_request_id=checkout_id).first()
     if not payment:
         return jsonify(error="Payment not found."), 404
 
-    message = "Waiting for M-Pesa confirmation."
-    if payment.mpesa_response:
+    return _payment_status_response(payment)
+
+
+def _payment_status_response(payment):
+    if payment.status == "pending":
+        message = "M-Pesa prompt sent. Waiting for you to approve or cancel it on your phone."
+    else:
+        message = "M-Pesa did not provide a result description."
+    if payment.status != "pending" and payment.mpesa_response:
         try:
             data = json.loads(payment.mpesa_response)
         except json.JSONDecodeError:

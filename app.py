@@ -64,7 +64,31 @@ def create_app(config_object=None):
 
     with app.app_context():
         db.create_all()
+        _migrate_product_categories()
     return app
+
+
+def _migrate_product_categories():
+    """Move products using the original narrow categories into the new taxonomy."""
+    from models import Product
+
+    legacy_categories = {
+        "Home": "Home & Furniture",
+        "Table": "Home & Furniture",
+        "Light": "Home & Furniture",
+        "Wear": "Clothing & Shoes",
+        "Scent": "Beauty & Personal Care",
+        "Books": "Books & Stationery",
+    }
+    changed = False
+    for old_category, new_category in legacy_categories.items():
+        updated = Product.query.filter_by(category=old_category).update(
+            {"category": new_category},
+            synchronize_session=False,
+        )
+        changed = changed or updated > 0
+    if changed:
+        db.session.commit()
 
 
 def register_cli(app):
@@ -79,12 +103,12 @@ def register_cli(app):
             db.session.add(seller)
             db.session.flush()
         items = [
-            ("Pour-over carafe", 68, "Table", "carafe", "Cream stoneware, one pour."),
-            ("Charcoal throw", 140, "Home", "throw", "Heavy wool, finished edges."),
-            ("Brass desk lamp", 210, "Light", "lamp", "Linen shade, warm metal."),
-            ("Dinner plates", 96, "Table", "plates", "Matte black, set of four."),
-            ("Tan loafers", 248, "Wear", "loafers", "Unlined leather, everyday."),
-            ("Amber bottle", 54, "Scent", "amber", "Cedar, resin, quiet citrus."),
+            ("Pour-over carafe", 68, "Home & Furniture", "carafe", "Cream stoneware, one pour."),
+            ("Charcoal throw", 140, "Home & Furniture", "throw", "Heavy wool, finished edges."),
+            ("Brass desk lamp", 210, "Home & Furniture", "lamp", "Linen shade, warm metal."),
+            ("Dinner plates", 96, "Home & Furniture", "plates", "Matte black, set of four."),
+            ("Tan loafers", 248, "Clothing & Shoes", "loafers", "Unlined leather, everyday."),
+            ("Amber bottle", 54, "Beauty & Personal Care", "amber", "Cedar, resin, quiet citrus."),
         ]
         added = 0
         for title, price, cat, img, note in items:

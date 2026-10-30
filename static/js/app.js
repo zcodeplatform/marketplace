@@ -10,6 +10,7 @@ const esc = (s) =>
   String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 const state = { lines: load(), done: false, payment: loadPayment() };
+let paymentPolling = false;
 
 function load() {
   try {
@@ -192,7 +193,7 @@ function paintCartPage() {
 
   const total = state.lines.reduce((sum, line) => sum + line.price * line.qty, 0);
   const pending = state.payment && state.payment.status === "pending";
-  const failed = state.payment && state.payment.status === "failed";
+  const failed = state.payment && ["failed", "cancelled"].includes(state.payment.status);
   page.innerHTML = `
     <div class="cart-page-layout">
       <section class="cart-page-items" aria-label="Cart items">
@@ -219,8 +220,13 @@ function paintCartPage() {
         ${pending ? `
           <div class="payment-message" role="status" data-payment-status>Waiting for M-Pesa confirmation…</div>
           <small>Amount: ${money(state.payment.amount)} · Prompt reference: ${esc(state.payment.reference)}</small>
+          <div class="payment-actions">
+            <button type="button" class="btn btn-outline" data-query-payment>Check M-Pesa now</button>
+            <a class="cart-full-link" href="${esc(document.body.dataset.browseUrl)}">Continue shopping</a>
+          </div>
+          <small>M-Pesa has not confirmed whether this payment completed. Don’t start another payment until this one is confirmed failed or canceled.</small>
         ` : `
-          ${failed ? `<div class="payment-message payment-error" role="status">${esc(state.payment.message || "Payment was not completed. Try again.")}</div>` : ""}
+          ${failed ? `<div class="payment-message payment-error" role="status">${state.payment.status === "cancelled" ? "You canceled the M-Pesa prompt. No payment was completed." : `Payment failed: ${esc(state.payment.message || "The payment was not completed.")}`}</div>` : ""}
           <form class="checkout-form" data-checkout-form>
             <label for="checkout-phone">M-Pesa phone number</label>
             <input id="checkout-phone" name="phone" type="tel" autocomplete="tel" placeholder="0712345678" required />
@@ -238,6 +244,8 @@ function paintCartPage() {
   page.querySelectorAll("[data-inc]").forEach((button) => (button.onclick = () => setQty(button.dataset.inc, qtyOf(button.dataset.inc) + 1)));
   const form = page.querySelector("[data-checkout-form]");
   if (form) form.addEventListener("submit", startCheckout);
+  const queryButton = page.querySelector("[data-query-payment]");
+  if (queryButton) queryButton.addEventListener("click", queryPayment);
 }
 
 async function startCheckout(event) {
@@ -288,7 +296,7 @@ async function startCheckout(event) {
     };
     savePayment();
     paintCartPage();
-    await pollPayment();
+    pollPayment();
   } catch (error) {
     status.textContent = error.message || "Could not start M-Pesa checkout. Please try again.";
   } finally {
@@ -297,47 +305,90 @@ async function startCheckout(event) {
 }
 
 async function pollPayment() {
-  if (!state.payment || !document.querySelector("[data-payment-status]")) return;
+  if (paymentPolling || !state.payment || state.payment.status !== "pending" ||
+      !document.querySelector("[data-payment-status]")) return;
+  paymentPolling = true;
   const url = document.body.dataset.paymentStatusUrl.replace(
     "CHECKOUT_ID",
     encodeURIComponent(state.payment.checkout_id),
   );
-  const notice = document.querySelector("[data-payment-status]");
 
-  for (let attempt = 0; attempt < 60; attempt += 1) {
-    if (attempt) await new Promise((resolve) => setTimeout(resolve, 3000));
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    if (attempt) await new Promise((resolve) => setTimeout(resolve, 5000));
+    if (!document.querySelector("[data-payment-status]") || !state.payment ||
+        state.payment.status !== "pending") break;
     try {
       const response = await fetch(url);
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Could not check payment status.");
-      if (data.status === "success") {
-        const paid = new Map(state.payment.items.map((item) => [item.id, item.qty]));
-        state.lines = state.lines
-          .map((line) => ({ ...line, qty: line.qty - (paid.get(String(line.id)) || 0) }))
-          .filter((line) => line.qty > 0);
-        state.payment = null;
-        state.done = true;
-        savePayment();
-        save();
-        paintCount();
-        paintCart();
-        paintCartPage();
-        return;
-      }
-      if (data.status === "failed") {
-        state.payment.status = "failed";
-        state.payment.message = data.message;
-        savePayment();
-        paintCartPage();
-        return;
-      }
-      notice.textContent = data.message || "Waiting for M-Pesa confirmation…";
+      if (applyPaymentStatus(data)) break;
     } catch (error) {
-      notice.textContent = error.message || "Could not check payment status.";
-      return;
+      const notice = document.querySelector("[data-payment-status]");
+      if (notice) notice.textContent = error.message || "Could not check payment status.";
+      break;
     }
   }
-  notice.textContent = "Payment is still pending. Keep this page open or return later to check again.";
+  paymentPolling = false;
+  const notice = document.querySelector("[data-payment-status]");
+  if (notice && state.payment && state.payment.status === "pending") {
+    notice.textContent = "Still waiting: M-Pesa has not confirmed success, failure, or cancellation. Use “Check M-Pesa now” or continue shopping.";
+  }
+}
+
+function applyPaymentStatus(data) {
+  if (!state.payment) return true;
+  if (data.status === "success") {
+    const paid = new Map(state.payment.items.map((item) => [item.id, item.qty]));
+    state.lines = state.lines
+      .map((line) => ({ ...line, qty: line.qty - (paid.get(String(line.id)) || 0) }))
+      .filter((line) => line.qty > 0);
+    state.payment = null;
+    state.done = state.lines.length === 0;
+    savePayment();
+    save();
+    paintCount();
+    paintCart();
+    paintCartPage();
+    return true;
+  }
+  if (data.status === "failed" || data.status === "cancelled") {
+    state.payment.status = data.status;
+    state.payment.message = data.message;
+    savePayment();
+    paintCartPage();
+    return true;
+  }
+  const notice = document.querySelector("[data-payment-status]");
+  if (notice) notice.textContent = data.message || "M-Pesa has not confirmed the payment yet.";
+  return false;
+}
+
+async function queryPayment(event) {
+  const button = event.currentTarget;
+  const notice = document.querySelector("[data-payment-status]");
+  button.disabled = true;
+  if (notice) notice.textContent = "Asking M-Pesa for the latest transaction status…";
+  try {
+    const url = document.body.dataset.paymentQueryUrl.replace(
+      "CHECKOUT_ID",
+      encodeURIComponent(state.payment.checkout_id),
+    );
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "X-CSRFToken": document.body.dataset.csrfToken },
+    });
+    const data = await response.json();
+    if (!response.ok && response.status !== 502) {
+      throw new Error(data.error || data.message || "Could not check this payment.");
+    }
+    if (applyPaymentStatus(data)) return;
+    if (response.status === 502 && notice) notice.textContent = data.message;
+  } catch (error) {
+    const currentNotice = document.querySelector("[data-payment-status]");
+    if (currentNotice) currentNotice.textContent = error.message || "Could not check this payment.";
+  } finally {
+    if (button.isConnected) button.disabled = false;
+  }
 }
 
 // "Add to bag" buttons on any page (event delegation).

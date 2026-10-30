@@ -1323,6 +1323,19 @@ form input:disabled {
   color: var(--muted);
   font-size: 0.85rem;
 }
+.payment-actions {
+  display: grid;
+  justify-items: stretch;
+  gap: 0.5rem;
+  margin-block: 0.75rem;
+}
+.payment-actions .btn {
+  margin: 0;
+}
+.payment-actions .cart-full-link {
+  margin: 0;
+  padding: 0.4rem;
+}
 .payment-error {
   color: var(--primary);
 }
