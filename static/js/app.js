@@ -521,3 +521,69 @@ if (liveSearch && productResults) {
     refreshResults();
   });
 }
+
+document.querySelectorAll("[data-ad-carousel]").forEach((carousel) => {
+  const slides = [...carousel.querySelectorAll("[data-ad-slide]")];
+  const dots = [...carousel.querySelectorAll("[data-ad-dot]")];
+  const count = carousel.querySelector("[data-ad-count]");
+  const previous = carousel.querySelector("[data-ad-prev]");
+  const next = carousel.querySelector("[data-ad-next]");
+  if (slides.length < 2) return;
+
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+  let activeIndex = 0;
+  let timer;
+
+  const showSlide = (index) => {
+    activeIndex = (index + slides.length) % slides.length;
+    slides.forEach((slide, slideIndex) => {
+      slide.hidden = slideIndex !== activeIndex;
+    });
+    dots.forEach((dot, dotIndex) => {
+      if (dotIndex === activeIndex) dot.setAttribute("aria-current", "true");
+      else dot.removeAttribute("aria-current");
+    });
+    if (count) count.textContent = `${activeIndex + 1} / ${slides.length}`;
+  };
+
+  const stop = () => {
+    window.clearInterval(timer);
+    timer = undefined;
+  };
+  const start = () => {
+    stop();
+    if (
+      reducedMotion.matches ||
+      document.hidden ||
+      carousel.matches(":hover") ||
+      carousel.contains(document.activeElement)
+    ) return;
+    timer = window.setInterval(() => showSlide(activeIndex + 1), 5000);
+  };
+
+  previous?.addEventListener("click", () => {
+    showSlide(activeIndex - 1);
+    start();
+  });
+  next?.addEventListener("click", () => {
+    showSlide(activeIndex + 1);
+    start();
+  });
+  dots.forEach((dot) => {
+    dot.addEventListener("click", () => {
+      showSlide(Number(dot.dataset.adDot));
+      start();
+    });
+  });
+  carousel.addEventListener("mouseenter", stop);
+  carousel.addEventListener("mouseleave", start);
+  carousel.addEventListener("focusin", stop);
+  carousel.addEventListener("focusout", (event) => {
+    if (!carousel.contains(event.relatedTarget)) start();
+  });
+  document.addEventListener("visibilitychange", start);
+  reducedMotion.addEventListener?.("change", start);
+
+  showSlide(0);
+  start();
+});

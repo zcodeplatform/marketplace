@@ -23,6 +23,7 @@ class Config:
 
     GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "")
     GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
+    ADMIN_EMAILS = os.environ.get("ADMIN_EMAILS", "")
 
     MPESA_BASE_URL = os.environ.get("MPESA_BASE_URL", "https://sandbox.safaricom.co.ke").rstrip("/")
     MPESA_CONSUMER_KEY = os.environ.get("MPESA_CONSUMER_KEY", "")

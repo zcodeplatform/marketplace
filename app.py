@@ -1,6 +1,7 @@
 import click
 from dotenv import load_dotenv
 from flask import Flask, render_template
+from flask_login import current_user
 
 from extensions import csrf, db, login_manager, oauth
 
@@ -28,19 +29,26 @@ def create_app(config_object=None):
     )
 
     from auth import bp as auth_bp
+    from ads import bp as ads_bp
     from main import bp as main_bp
     from account import bp as profile_bp
     from payments import bp as payments_bp
     from seller import bp as seller_bp
 
-    for bp in (main_bp, auth_bp, seller_bp, profile_bp, payments_bp):
+    for bp in (main_bp, auth_bp, ads_bp, seller_bp, profile_bp, payments_bp):
         app.register_blueprint(bp)
 
     @app.context_processor
     def inject_globals():
+        admin_emails = app.config.get("ADMIN_EMAILS", "")
+        if isinstance(admin_emails, str):
+            admin_emails = {email.strip().lower() for email in admin_emails.split(",") if email.strip()}
+        else:
+            admin_emails = {str(email).strip().lower() for email in admin_emails}
         return {
             "google_enabled": bool(app.config["GOOGLE_CLIENT_ID"] and app.config["GOOGLE_CLIENT_SECRET"]),
             "currency": app.config["CURRENCY_SYMBOL"],
+            "is_admin": bool(current_user.is_authenticated and current_user.email.lower() in admin_emails),
         }
 
     @app.template_filter("money")

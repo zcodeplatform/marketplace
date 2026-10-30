@@ -67,6 +67,7 @@ class User(UserMixin, db.Model):
     listing_plan_payments = db.relationship(
         "ListingPlanPayment", back_populates="seller", lazy="dynamic",
     )
+    homepage_ads = db.relationship("HomepageAd", back_populates="created_by", lazy="dynamic")
 
     def set_password(self, raw):
         self.password_hash = generate_password_hash(raw)
@@ -187,6 +188,24 @@ class ListingPlanPayment(db.Model):
     expires_at = db.Column(db.DateTime, nullable=True, index=True)
 
     seller = db.relationship("User", back_populates="listing_plan_payments")
+
+
+class HomepageAd(db.Model):
+    __tablename__ = "homepage_ads"
+
+    id = db.Column(db.Integer, primary_key=True)
+    title = db.Column(db.String(160), nullable=False)
+    image_path = db.Column(db.String(255), nullable=False)
+    destination_url = db.Column(db.String(500), nullable=True)
+    is_active = db.Column(db.Boolean, nullable=False, default=True, index=True)
+    created_at = db.Column(db.DateTime, default=_now, nullable=False, index=True)
+    created_by_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+
+    created_by = db.relationship("User", back_populates="homepage_ads")
+
+    @property
+    def image_url(self):
+        return _image_url(self.image_path, "img/placeholder.svg")
 
 
 def active_listing_plan(seller_id, now=None):

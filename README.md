@@ -19,6 +19,11 @@ Open http://localhost:5000 (use `localhost`, not `127.0.0.1`, so it matches the 
 5. Copy the Client ID / Secret into `.env` as `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`.
 The "Continue with Google" button only appears once both values are set.
 
+## Homepage ads
+Set `ADMIN_EMAILS` to a comma-separated list of account email addresses that can manage homepage banners, for example `ADMIN_EMAILS=admin@example.com`. Those accounts see the **Ads** link and can upload, publish, hide, or delete banners at `/admin/ads`; other signed-in users are denied access.
+
+Ad images use the existing WebP image pipeline and configured image storage (Cloudflare R2 by default). Only the three newest active ads appear in the homepage slideshow. Each ad needs a short accessible description and can optionally link to an external `http` or `https` URL.
+
 ## M-Pesa checkout setup
 1. In the Safaricom Daraja portal, create an app and get its consumer key and secret, Lipa Na M-Pesa passkey, and shortcode.
 2. Set `MPESA_CONSUMER_KEY`, `MPESA_CONSUMER_SECRET`, `MPESA_PASSKEY`, and `MPESA_SHORTCODE` in `.env`. Sandbox uses shortcode `174379`; leave `MPESA_BASE_URL` as `https://sandbox.safaricom.co.ke` for sandbox transactions.

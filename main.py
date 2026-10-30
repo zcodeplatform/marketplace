@@ -1,6 +1,6 @@
 from flask import Blueprint, redirect, render_template, request, url_for
 
-from models import CATEGORIES, STATUS_ACTIVE, Product, public_listing_filter
+from models import CATEGORIES, STATUS_ACTIVE, HomepageAd, Product, public_listing_filter
 
 bp = Blueprint("main", __name__)
 
@@ -11,7 +11,11 @@ def index():
         Product.status == STATUS_ACTIVE,
         public_listing_filter(),
     ).order_by(Product.created_at.desc()).limit(6).all()
-    return render_template("index.html", products=latest, categories=CATEGORIES)
+    ads = HomepageAd.query.filter_by(is_active=True).order_by(
+        HomepageAd.created_at.desc(),
+        HomepageAd.id.desc(),
+    ).limit(3).all()
+    return render_template("index.html", products=latest, categories=CATEGORIES, ads=ads)
 
 
 @bp.route("/browse")

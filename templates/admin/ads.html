@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Homepage ads{% endblock %}
+{% block content %}
+<section class="wrap page admin-ads-page">
+  <div class="browse-heading">
+    <div>
+      <p class="kicker">Marketplace content</p>
+      <h1 class="page-title">Homepage ads</h1>
+    </div>
+  </div>
+  <p class="admin-ads-intro">Upload a banner to feature it in the homepage slideshow. The three most recently published ads are shown.</p>
+
+  <form class="admin-ad-form" method="post" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <label>
+      Banner description
+      <input type="text" name="title" maxlength="160" required />
+    </label>
+    <label>
+      Banner image
+      <input type="file" name="image" accept=".png,.jpg,.jpeg,.webp,.gif" required />
+      <small>Images are optimized and saved as WebP in configured storage.</small>
+    </label>
+    <label>
+      Destination URL <span class="muted">(optional)</span>
+      <input type="url" name="destination_url" maxlength="500" placeholder="https://example.com" />
+    </label>
+    <button class="btn btn-sm" type="submit">Upload ad</button>
+  </form>
+
+  <div class="section-head">
+    <h2>All ads <span class="muted">({{ ads|length }})</span></h2>
+  </div>
+  {% if ads %}
+  <ul class="admin-ad-list">
+    {% for ad in ads %}
+    <li>
+      <img src="{{ ad.image_url }}" alt="{{ ad.title }}" />
+      <div class="admin-ad-info">
+        <strong>{{ ad.title }}</strong>
+        {% if ad.destination_url %}<a href="{{ ad.destination_url }}" target="_blank" rel="noopener noreferrer">{{ ad.destination_url }}</a>{% else %}<span class="muted">No destination link</span>{% endif %}
+        <span class="muted">Added {{ ad.created_at.strftime('%b %d, %Y') }}</span>
+      </div>
+      <div class="admin-ad-actions">
+        <span class="status-pill {{ 'status-active' if ad.is_active else 'status-cancelled' }}">{{ 'Published' if ad.is_active else 'Hidden' }}</span>
+        <form method="post" action="{{ url_for('ads.toggle', ad_id=ad.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <button class="btn btn-sm btn-outline" type="submit">{{ 'Hide' if ad.is_active else 'Publish' }}</button>
+        </form>
+        <form method="post" action="{{ url_for('ads.delete', ad_id=ad.id) }}" onsubmit="return confirm('Delete this ad permanently?')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <button class="btn btn-sm btn-danger" type="submit">Delete</button>
+        </form>
+      </div>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="empty-note">No ads yet. Upload a banner to start the homepage slideshow.</p>
+  {% endif %}
+</section>
+{% endblock %}

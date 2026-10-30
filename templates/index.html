@@ -42,11 +42,41 @@
     <p class="empty-note">Nothing listed yet. Be the first to <a class="link" href="{{ url_for('seller.new') }}">sell something</a>.</p>
   {% endif %}
 </section>
-<section id="story">
-  <div class="inner center">
-    <p class="kicker">A little less, a little better</p>
-    <h2>Made to sit still</h2>
-    <p>Find useful pieces from independent sellers, chosen for honest materials and forms that stay useful after the season ends.</p>
+{% if ads %}
+<section id="featured-ads" aria-label="Featured ads">
+  <div class="wrap">
+    <div class="ad-carousel" data-ad-carousel>
+      <div class="ad-carousel-slides">
+        {% for ad in ads %}
+        <article class="ad-slide" data-ad-slide {% if not loop.first %}hidden{% endif %}>
+          {% if ad.destination_url %}
+          <a href="{{ ad.destination_url }}" target="_blank" rel="noopener noreferrer" aria-label="{{ ad.title }}">
+            <img src="{{ ad.image_url }}" alt="{{ ad.title }}" />
+          </a>
+          {% else %}
+          <img src="{{ ad.image_url }}" alt="{{ ad.title }}" />
+          {% endif %}
+        </article>
+        {% endfor %}
+      </div>
+      {% if ads|length > 1 %}
+      <div class="ad-carousel-controls">
+        <button class="ad-carousel-arrow" type="button" data-ad-prev aria-label="Previous ad">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 18-6-6 6-6" /></svg>
+        </button>
+        <div class="ad-carousel-dots" role="group" aria-label="Choose an ad">
+          {% for ad in ads %}
+          <button type="button" data-ad-dot="{{ loop.index0 }}" aria-label="Show ad {{ loop.index }}" {% if loop.first %}aria-current="true"{% endif %}></button>
+          {% endfor %}
+        </div>
+        <span class="ad-carousel-count" data-ad-count aria-live="off">1 / {{ ads|length }}</span>
+        <button class="ad-carousel-arrow" type="button" data-ad-next aria-label="Next ad">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 18 6-6-6-6" /></svg>
+        </button>
+      </div>
+      {% endif %}
+    </div>
   </div>
 </section>
+{% endif %}
 {% endblock %}

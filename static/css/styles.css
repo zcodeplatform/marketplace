@@ -408,6 +408,79 @@ h3 {
   border-block: 1px solid var(--line);
   background: var(--surface);
 }
+#featured-ads {
+  padding-block: 2rem 3rem;
+  border-block: 1px solid var(--line);
+  background: var(--surface);
+}
+.ad-carousel {
+  position: relative;
+}
+.ad-slide[hidden] {
+  display: none;
+}
+.ad-slide a,
+.ad-slide img {
+  display: block;
+  width: 100%;
+}
+.ad-slide img {
+  aspect-ratio: 16 / 6;
+  border-radius: 0.9rem;
+  background: var(--bg);
+  object-fit: cover;
+}
+.ad-carousel-controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  margin-top: 0.85rem;
+}
+.ad-carousel-arrow {
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--ink);
+}
+.ad-carousel-arrow:hover,
+.ad-carousel-arrow:focus-visible {
+  border-color: var(--primary);
+  color: var(--primary);
+}
+.ad-carousel-arrow svg {
+  width: 1.2rem;
+  height: 1.2rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+.ad-carousel-dots {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+.ad-carousel-dots button {
+  width: 0.6rem;
+  height: 0.6rem;
+  padding: 0;
+  border-radius: 50%;
+  background: var(--line);
+}
+.ad-carousel-dots button[aria-current="true"] {
+  background: var(--primary);
+}
+.ad-carousel-count {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
+}
 #story .inner,
 #visit {
   width: min(36rem, calc(100% - 2rem));
@@ -893,6 +966,10 @@ h3 {
 }
 @media (max-width: 600px) {
   .store-hero h1 { font-size: clamp(2.25rem, 10vw, 2.8rem); }
+  .ad-slide img {
+    aspect-ratio: 4 / 3;
+    border-radius: 0.65rem;
+  }
 }
 @media (min-width: 640px) {
   .footer-main {
@@ -1337,6 +1414,88 @@ form input:disabled {
   text-align: center;
   color: var(--muted);
   padding: 3rem 0;
+}
+.admin-ads-intro {
+  max-width: 42rem;
+  margin: -0.75rem 0 1.5rem;
+  color: var(--muted);
+}
+.admin-ad-form {
+  display: grid;
+  gap: 1rem;
+  padding: 1.25rem;
+  border: 1px solid var(--line);
+  border-radius: 0.9rem;
+  background: var(--surface);
+}
+.admin-ad-form label {
+  display: grid;
+  gap: 0.35rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+.admin-ad-form input {
+  margin: 0 !important;
+}
+.admin-ad-form input[type="file"] {
+  padding: 0.55rem;
+  background: transparent;
+}
+.admin-ad-form small {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+.admin-ad-form .btn {
+  justify-self: start;
+  margin: 0;
+}
+.admin-ad-list {
+  display: grid;
+  gap: 0.8rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.admin-ad-list > li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  padding: 0.85rem;
+  border: 1px solid var(--line);
+  border-radius: 0.8rem;
+  background: var(--surface);
+}
+.admin-ad-list > li > img {
+  width: min(12rem, 100%);
+  aspect-ratio: 16 / 7;
+  flex: none;
+  border-radius: 0.5rem;
+  background: var(--bg);
+  object-fit: cover;
+}
+.admin-ad-info {
+  display: grid;
+  flex: 1 1 14rem;
+  min-width: 0;
+  gap: 0.2rem;
+  overflow-wrap: anywhere;
+}
+.admin-ad-info > a,
+.admin-ad-info > span {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.admin-ad-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.admin-ad-actions form,
+.admin-ad-actions .btn {
+  margin: 0;
 }
 
 .detail {
