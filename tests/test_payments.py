@@ -579,7 +579,7 @@ class PaymentCheckoutTests(unittest.TestCase):
 
         self.assertEqual(result["CheckoutRequestID"], "ws_CO_test")
         get_token.assert_called_once_with(
-            "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials",
+            f"{TestConfig.MPESA_BASE_URL}/oauth/v1/generate?grant_type=client_credentials",
             auth=("test-key", "test-secret"),
             timeout=15,
         )
@@ -607,7 +607,7 @@ class PaymentCheckoutTests(unittest.TestCase):
         self.assertEqual(result["ResultCode"], "1032")
         self.assertEqual(
             send_query.call_args.args[0],
-            "https://sandbox.safaricom.co.ke/mpesa/stkpushquery/v1/query",
+            f"{TestConfig.MPESA_BASE_URL}/mpesa/stkpushquery/v1/query",
         )
         self.assertEqual(send_query.call_args.kwargs["json"]["CheckoutRequestID"], "ws_CO_test")
 

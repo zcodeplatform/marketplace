@@ -57,7 +57,7 @@
         {% if active_listing_plan %}Renew for KES {{ listing_plan_price }}{% else %}Pay KES {{ listing_plan_price }}{% endif %}
       </button>
     </form>
-    <p class="listing-plan-renewal-note">Each successful payment starts a new 30-day period. M-Pesa fees may apply.</p>
+    <p class="listing-plan-renewal-note">Each successful payment starts a new {{ listing_plan_days }}-day period. M-Pesa fees may apply.</p>
 
     {% if listing_plan_payments %}
     <details class="listing-plan-history">

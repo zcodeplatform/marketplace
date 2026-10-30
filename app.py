@@ -4,6 +4,7 @@ from flask import Flask, render_template
 from flask_login import current_user
 
 from extensions import csrf, db, login_manager, oauth
+from utils import parse_admin_emails
 
 load_dotenv()
 
@@ -40,15 +41,16 @@ def create_app(config_object=None):
 
     @app.context_processor
     def inject_globals():
-        admin_emails = app.config.get("ADMIN_EMAILS", "")
-        if isinstance(admin_emails, str):
-            admin_emails = {email.strip().lower() for email in admin_emails.split(",") if email.strip()}
-        else:
-            admin_emails = {str(email).strip().lower() for email in admin_emails}
         return {
             "google_enabled": bool(app.config["GOOGLE_CLIENT_ID"] and app.config["GOOGLE_CLIENT_SECRET"]),
             "currency": app.config["CURRENCY_SYMBOL"],
-            "is_admin": bool(current_user.is_authenticated and current_user.email.lower() in admin_emails),
+            "is_admin": bool(
+                current_user.is_authenticated
+                and current_user.email.lower() in parse_admin_emails(app.config.get("ADMIN_EMAILS", ""))
+            ),
+            "image_accept": ",".join(
+                f".{extension}" for extension in sorted(app.config["ALLOWED_IMAGE_EXTENSIONS"])
+            ),
         }
 
     @app.template_filter("money")

@@ -21,7 +21,7 @@
     </div>
     <label>Image
       {% if product and product.image_path %}<img class="thumb" src="{{ product.image_url }}" alt="Current image" />{% endif %}
-      <input type="file" name="image" accept="image/png,image/jpeg,image/webp,image/gif" />
+      <input type="file" name="image" accept="{{ image_accept }}" />
       <small>PNG, JPG, WEBP or GIF, up to 5 MB.{% if product %} Leave empty to keep the current image.{% endif %}</small>
     </label>
     <button class="btn btn-block" type="submit">{{ 'Save changes' if product else 'Publish product' }}</button>

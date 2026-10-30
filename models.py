@@ -185,7 +185,7 @@ class ListingPlanPayment(db.Model):
     checkout_request_id = db.Column(db.String(255), unique=True, nullable=True, index=True)
     merchant_request_id = db.Column(db.String(255), nullable=True)
     phone_number = db.Column(db.String(12), nullable=False)
-    amount = db.Column(db.Integer, nullable=False, default=100)
+    amount = db.Column(db.Integer, nullable=False, default=LISTING_PLAN_PRICE)
     status = db.Column(db.String(12), nullable=False, default="pending", index=True)
     mpesa_response = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime, default=_now, nullable=False)

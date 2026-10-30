@@ -18,6 +18,11 @@ class ImageStorageError(RuntimeError):
     """Raised when image storage is missing configuration or unavailable."""
 
 
+def parse_admin_emails(value):
+    emails = value.split(",") if isinstance(value, str) else value or ()
+    return {str(email).strip().lower() for email in emails if str(email).strip()}
+
+
 def is_safe_next(target):
     """Allow only same-site relative redirects (prevents open redirects)."""
     if not target:

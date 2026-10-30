@@ -242,7 +242,7 @@ function paintCartPage() {
           <div class="checkout-signin">
             <p>Sign in or create an account to place your order and track its payment.</p>
             <a class="btn" href="${esc(document.body.dataset.loginUrl)}">Sign in to checkout</a>
-            <a class="cart-full-link" href="/signup?next=%2Fcart">Create an account</a>
+            <a class="cart-full-link" href="${esc(document.body.dataset.signupUrl)}">Create an account</a>
           </div>
           `}
         `}

@@ -6,17 +6,20 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from extensions import db
 from models import HomepageAd
-from utils import ImageStorageError, ImageUploadError, allowed_image, delete_image, save_image
+from utils import (
+    ImageStorageError,
+    ImageUploadError,
+    allowed_image,
+    delete_image,
+    parse_admin_emails,
+    save_image,
+)
 
 bp = Blueprint("ads", __name__, url_prefix="/admin/ads")
 
 
 def _admin_required():
-    configured_emails = current_app.config.get("ADMIN_EMAILS", "")
-    if isinstance(configured_emails, str):
-        admin_emails = {email.strip().lower() for email in configured_emails.split(",") if email.strip()}
-    else:
-        admin_emails = {str(email).strip().lower() for email in configured_emails}
+    admin_emails = parse_admin_emails(current_app.config.get("ADMIN_EMAILS", ""))
     if not current_user.is_authenticated or current_user.email.lower() not in admin_emails:
         abort(403)
 
