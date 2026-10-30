@@ -1,8 +1,9 @@
 import hashlib
 import hmac
 import secrets
+from xml.etree import ElementTree
 
-from flask import Blueprint, current_app, make_response, redirect, render_template, request, url_for
+from flask import Blueprint, Response, current_app, make_response, redirect, render_template, request, url_for
 from flask_login import current_user
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 from sqlalchemy.exc import IntegrityError
@@ -13,6 +14,28 @@ from models import CATEGORIES, HomepageAd, Product, ProductView, STATUS_ACTIVE, 
 from utils import require_admin
 
 bp = Blueprint("main", __name__)
+
+
+@bp.get("/sitemap.xml")
+def sitemap():
+    products = Product.query.filter(
+        Product.status == STATUS_ACTIVE,
+        public_listing_filter(),
+    ).order_by(Product.created_at.desc(), Product.id.desc()).all()
+    locations = [
+        url_for("main.index", _external=True),
+        url_for("main.browse", _external=True),
+        *(url_for("main.product_detail", slug=product.slug, _external=True) for product in products),
+    ]
+
+    sitemap_namespace = "http://www.sitemaps.org/schemas/sitemap/0.9"
+    root = ElementTree.Element("urlset", {"xmlns": sitemap_namespace})
+    for location in locations:
+        url_element = ElementTree.SubElement(root, "url")
+        ElementTree.SubElement(url_element, "loc").text = location
+
+    xml = ElementTree.tostring(root, encoding="utf-8", xml_declaration=True)
+    return Response(xml, mimetype="application/xml")
 
 
 @bp.route("/")
