@@ -61,6 +61,7 @@ class User(UserMixin, db.Model):
         "Product", backref="seller", lazy="dynamic",
         cascade="all, delete-orphan", order_by="Product.created_at.desc()",
     )
+    product_views = db.relationship("ProductView", back_populates="viewer", lazy="dynamic")
     payment_shares = db.relationship(
         "PaymentSeller", back_populates="seller", lazy="dynamic",
     )
@@ -109,6 +110,9 @@ class Product(db.Model):
     status = db.Column(db.String(10), nullable=False, default=STATUS_ACTIVE, index=True)
     created_at = db.Column(db.DateTime, default=_now, nullable=False)
     seller_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False, index=True)
+    view_records = db.relationship(
+        "ProductView", back_populates="product", cascade="all, delete-orphan",
+    )
 
     @property
     def is_sold(self):
@@ -137,6 +141,27 @@ class Product(db.Model):
             slug = f"{base}-{n}"
             n += 1
         return slug
+
+
+class ProductView(db.Model):
+    __tablename__ = "product_views"
+    __table_args__ = (
+        db.UniqueConstraint("product_id", "viewer_hash", name="uq_product_viewer"),
+    )
+
+    id = db.Column(db.Integer, primary_key=True)
+    product_id = db.Column(
+        db.Integer,
+        db.ForeignKey("products.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    viewer_hash = db.Column(db.String(64), nullable=False)
+    created_at = db.Column(db.DateTime, default=_now, nullable=False)
+
+    product = db.relationship("Product", back_populates="view_records")
+    viewer_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True, index=True)
+    viewer = db.relationship("User", back_populates="product_views")
 
 
 class Payment(db.Model):

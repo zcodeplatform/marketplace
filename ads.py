@@ -1,6 +1,6 @@
 from urllib.parse import urlsplit
 
-from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, url_for
+from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -12,16 +12,11 @@ from utils import (
     allowed_image,
     delete_image,
     parse_admin_emails,
+    require_admin,
     save_image,
 )
 
 bp = Blueprint("ads", __name__, url_prefix="/admin/ads")
-
-
-def _admin_required():
-    admin_emails = parse_admin_emails(current_app.config.get("ADMIN_EMAILS", ""))
-    if not current_user.is_authenticated or current_user.email.lower() not in admin_emails:
-        abort(403)
 
 
 def _valid_destination(value):
@@ -47,7 +42,7 @@ def _valid_destination(value):
 @bp.route("/", methods=["GET", "POST"])
 @login_required
 def manage():
-    _admin_required()
+    require_admin()
     if request.method == "POST":
         title = request.form.get("title", "").strip()
         destination = request.form.get("destination_url", "").strip()
@@ -100,7 +95,7 @@ def manage():
 @bp.post("/<int:ad_id>/toggle")
 @login_required
 def toggle(ad_id):
-    _admin_required()
+    require_admin()
     ad = db.get_or_404(HomepageAd, ad_id)
     ad.is_active = not ad.is_active
     try:
@@ -117,7 +112,7 @@ def toggle(ad_id):
 @bp.route("/<int:ad_id>/edit", methods=["GET", "POST"])
 @login_required
 def edit(ad_id):
-    _admin_required()
+    require_admin()
     ad = db.get_or_404(HomepageAd, ad_id)
 
     if request.method == "GET":
@@ -177,7 +172,7 @@ def edit(ad_id):
 @bp.post("/<int:ad_id>/delete")
 @login_required
 def delete(ad_id):
-    _admin_required()
+    require_admin()
     ad = db.get_or_404(HomepageAd, ad_id)
     image_path = ad.image_path
     db.session.delete(ad)

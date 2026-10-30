@@ -115,6 +115,7 @@
         {% endif %}
         <p class="muted">{{ p.category }} · {{ p.price|money }}
           <span class="status-pill status-{{ p.status }}">{{ p.status }}</span></p>
+        <p class="product-view-count">{{ product_view_counts.get(p.id, 0) }} unique views</p>
       </div>
       <div class="mp-actions">
         <a class="btn btn-sm btn-outline" href="{{ url_for('seller.edit', product_id=p.id) }}">Edit</a>

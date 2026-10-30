@@ -3,6 +3,7 @@ import re
 
 from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
+from sqlalchemy import func
 
 from extensions import db
 from models import (
@@ -13,6 +14,7 @@ from models import (
     Payment,
     PaymentSeller,
     Product,
+    ProductView,
     active_listing_plan,
     latest_successful_listing_plan_payment,
 )
@@ -48,6 +50,12 @@ def view():
         for payment in purchase_payments
     ]
     products = current_user.products.all()
+    product_view_counts = dict(
+        db.session.query(ProductView.product_id, func.count(ProductView.id))
+        .filter(ProductView.product_id.in_([product.id for product in products]))
+        .group_by(ProductView.product_id)
+        .all()
+    )
     free_product_ids = {
         product_id
         for (product_id,) in db.session.query(Product.id)
@@ -65,6 +73,7 @@ def view():
     return render_template(
         "profile/view.html",
         products=products,
+        product_view_counts=product_view_counts,
         free_product_ids=free_product_ids,
         product_limit="Unlimited" if active_plan else MAX_SELLER_PRODUCTS,
         can_add_products=active_plan is not None or len(products) < MAX_SELLER_PRODUCTS,

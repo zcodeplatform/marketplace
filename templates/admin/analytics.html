@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Product analytics{% endblock %}
+{% block content %}
+<section class="wrap page admin-ads-page">
+  <div class="browse-heading">
+    <div>
+      <p class="kicker">Marketplace insights</p>
+      <h1 class="page-title">Product analytics</h1>
+    </div>
+  </div>
+  <p class="admin-ads-intro">Lifetime unique product viewers. Signed-in accounts and signed-out browsers are counted separately.</p>
+  {% if product_views %}
+  <ul class="admin-analytics-table">
+    {% for product, unique_views in product_views %}
+    <li>
+      <div class="admin-analytics-product">
+        <a href="{{ url_for('main.product_detail', slug=product.slug) }}"><strong>{{ product.title }}</strong></a>
+        <span>{{ product.seller.name }} · {{ product.status }}</span>
+      </div>
+      <span class="admin-analytics-count">{{ unique_views }} {{ 'unique view' if unique_views == 1 else 'unique views' }}</span>
+    </li>
+    {% endfor %}
+  </ul>
+  {% else %}
+  <p class="empty-note">No products have been listed yet.</p>
+  {% endif %}
+</section>
+{% endblock %}

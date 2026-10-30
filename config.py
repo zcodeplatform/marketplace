@@ -12,6 +12,8 @@ class Config:
     UPLOAD_FOLDER = BASE_DIR / "static" / "uploads"
     MAX_CONTENT_LENGTH = 5 * 1024 * 1024  # 5 MB
     ALLOWED_IMAGE_EXTENSIONS = {"png", "jpg", "jpeg", "webp", "gif"}
+    PRODUCT_VIEW_COOKIE_NAME = "marketplace_viewer"
+    PRODUCT_VIEW_COOKIE_MAX_AGE = 10 * 365 * 24 * 60 * 60
     IMAGE_STORAGE_BACKEND = os.environ.get("IMAGE_STORAGE_BACKEND", "r2").lower()
     CLOUDFLARE_R2_ACCOUNT_ID = os.environ.get("CLOUDFLARE_R2_ACCOUNT_ID", "")
     CLOUDFLARE_R2_ACCESS_KEY_ID = os.environ.get("CLOUDFLARE_R2_ACCESS_KEY_ID", "")

@@ -58,6 +58,10 @@ Authorized users must sign in with one of those accounts. They can upload, edit,
 
 The homepage shows up to the three newest active ads. On desktop they display side by side; on mobile they rotate one at a time. Uploaded images use the configured image-storage backend and are converted to WebP.
 
+### Product view analytics
+
+Product detail views are counted once per product for each signed-in account, or each signed-out browser using a signed, first-party, long-lived cookie. The cookie contains a random identifier; the database stores only a keyed hash, not the raw identifier or visitor IP address. Clearing or expiring the cookie can cause that browser to be counted again. A seller’s own visits are excluded. Sellers see unique-view totals beside their products in the profile, and configured admins can see all products and totals at `/admin/analytics`.
+
 ### M-Pesa checkout
 
 1. Create a Daraja app and obtain its consumer key, consumer secret, Lipa Na M-Pesa passkey, and shortcode.

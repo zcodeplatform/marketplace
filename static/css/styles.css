@@ -1454,6 +1454,42 @@ form input:disabled {
   color: var(--muted);
   padding: 3rem 0;
 }
+.product-view-count {
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.admin-analytics-table {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.admin-analytics-table li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--line);
+  border-radius: 0.8rem;
+  background: var(--surface);
+}
+.admin-analytics-product {
+  display: grid;
+  gap: 0.2rem;
+}
+.admin-analytics-product span {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+.admin-analytics-count {
+  white-space: nowrap;
+  color: var(--primary);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
 .admin-ads-intro {
   max-width: 42rem;
   margin: -0.75rem 0 1.5rem;

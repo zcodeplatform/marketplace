@@ -6,7 +6,8 @@ from urllib.parse import urljoin, urlparse
 
 import boto3
 from botocore.exceptions import BotoCoreError, ClientError
-from flask import current_app, request
+from flask import abort, current_app, request
+from flask_login import current_user
 from PIL import Image, ImageOps, UnidentifiedImageError
 
 
@@ -21,6 +22,12 @@ class ImageStorageError(RuntimeError):
 def parse_admin_emails(value):
     emails = value.split(",") if isinstance(value, str) else value or ()
     return {str(email).strip().lower() for email in emails if str(email).strip()}
+
+
+def require_admin():
+    admin_emails = parse_admin_emails(current_app.config.get("ADMIN_EMAILS", ""))
+    if not current_user.is_authenticated or current_user.email.lower() not in admin_emails:
+        abort(403)
 
 
 def is_safe_next(target):
