@@ -34,6 +34,15 @@ def _parse_form(form, files):
         price = Decimal(form.get("price", "").strip()).quantize(Decimal("0.01"))
     except (InvalidOperation, ValueError):
         return None, "Please enter a valid price."
+    raw_stock = form.get("stock", "").strip()
+    if not raw_stock.isdecimal():
+        return None, "Please enter a whole-number stock quantity of 0 or more."
+    raw_stock = raw_stock.lstrip("0") or "0"
+    if len(raw_stock) > 10:
+        return None, "Stock quantity is too large."
+    stock = int(raw_stock)
+    if stock > 2_147_483_647:
+        return None, "Stock quantity is too large."
 
     if not title or len(title) > 150:
         return None, "Title is required (150 characters max)."
@@ -46,7 +55,7 @@ def _parse_form(form, files):
     image = files.get("image")
     if image and image.filename and not allowed_image(image.filename):
         return None, "Image must be a PNG, JPG, WEBP or GIF file."
-    return dict(title=title, description=description, price=price, category=category,
+    return dict(title=title, description=description, price=price, stock=stock, category=category,
                 status=status, image=image if image and image.filename else None), None
 
 

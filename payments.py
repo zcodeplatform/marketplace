@@ -7,6 +7,7 @@ from decimal import Decimal, InvalidOperation
 
 from flask import Blueprint, current_app, flash, jsonify, redirect, request, url_for
 from flask_login import current_user, login_required
+from sqlalchemy import update
 from sqlalchemy.exc import SQLAlchemyError
 
 from extensions import csrf, db
@@ -64,7 +65,6 @@ def _parse_cart(data):
 def _cart_snapshot(quantities):
     products = Product.query.filter(
         Product.id.in_(quantities),
-        Product.status == STATUS_ACTIVE,
         public_listing_filter(),
     ).all()
     if len(products) != len(quantities):
@@ -72,8 +72,18 @@ def _cart_snapshot(quantities):
 
     total = Decimal("0.00")
     items = []
-    for product in products:
-        quantity = quantities[product.id]
+    products_by_id = {product.id: product for product in products}
+    for product_id, quantity in quantities.items():
+        product = products_by_id[product_id]
+        if product.stock < 1:
+            return None, None, f"{product.title} is already out of stock."
+        if product.status != STATUS_ACTIVE:
+            return None, None, "One or more items are no longer available. Please update your cart."
+        if quantity > product.stock:
+            return None, None, (
+                f"Insufficient stock for {product.title}. "
+                f"Only {product.stock} item(s) are available."
+            )
         total += product.price * quantity
         items.append({
             "id": product.id,
@@ -86,6 +96,76 @@ def _cart_snapshot(quantities):
 
     items.sort(key=lambda item: item["id"])
     return items, total, None
+
+
+def _reserve_inventory(quantities):
+    """Atomically reserve each cart line; the caller commits or rolls back the transaction."""
+    for product_id, quantity in sorted(quantities.items()):
+        result = db.session.execute(
+            update(Product)
+            .where(
+                Product.id == product_id,
+                Product.status == STATUS_ACTIVE,
+                Product.stock >= quantity,
+            )
+            .values(stock=Product.stock - quantity)
+            .execution_options(synchronize_session=False)
+        )
+        if result.rowcount != 1:
+            return product_id
+    return None
+
+
+def _inventory_error(product_id, quantity):
+    product = Product.query.filter(
+        Product.id == product_id,
+        public_listing_filter(),
+    ).first()
+    if not product:
+        return "One or more items are no longer available. Please update your cart."
+    if product.stock < 1:
+        return f"{product.title} is already out of stock."
+    if product.status == STATUS_ACTIVE and quantity > product.stock:
+        return (
+            f"Insufficient stock for {product.title}. "
+            f"Only {product.stock} item(s) are available."
+        )
+    return "One or more items are no longer available. Please update your cart."
+
+
+def _set_checkout_payment_result(payment, result_code, data):
+    status = "success" if result_code == 0 else "cancelled" if result_code == 1032 else "failed"
+    result = db.session.execute(
+        update(Payment)
+        .where(Payment.id == payment.id, Payment.status == "pending")
+        .values(status=status, mpesa_response=json.dumps(data))
+        .execution_options(synchronize_session=False)
+    )
+    if result.rowcount != 1 or status == "success":
+        return result.rowcount == 1
+
+    items = json.loads(payment.items_json)
+    if not isinstance(items, list):
+        raise ValueError(f"Invalid inventory reservation for payment {payment.reference}.")
+    for item in items:
+        product_id = item.get("id") if isinstance(item, dict) else None
+        quantity = item.get("qty") if isinstance(item, dict) else None
+        if (
+            isinstance(product_id, bool)
+            or not isinstance(product_id, int)
+            or product_id < 1
+            or isinstance(quantity, bool)
+            or not isinstance(quantity, int)
+            or quantity < 1
+        ):
+            raise ValueError(f"Invalid inventory reservation for payment {payment.reference}.")
+        db.session.execute(
+            update(Product)
+            .where(Product.id == product_id)
+            .values(stock=Product.stock + quantity)
+            .execution_options(synchronize_session=False)
+        )
+    return True
 
 
 @bp.post("/api/checkout/stk")
@@ -147,6 +227,10 @@ def start_stk_push():
         )
         for seller_id, amount in seller_amounts.items()
     ]
+    failed_product_id = _reserve_inventory(quantities)
+    if failed_product_id is not None:
+        db.session.rollback()
+        return jsonify(error=_inventory_error(failed_product_id, quantities[failed_product_id])), 409
     db.session.add(payment)
     try:
         db.session.commit()
@@ -158,14 +242,17 @@ def start_stk_push():
     try:
         response = stk_push(phone_number, int(total), reference)
     except MpesaError as error:
-        payment.status = "failed"
-        payment.mpesa_response = json.dumps({"message": str(error)})
         try:
+            _set_checkout_payment_result(payment, 1, {"message": str(error)})
             db.session.commit()
         except SQLAlchemyError:
             db.session.rollback()
             current_app.logger.exception("Could not record M-Pesa request failure: %s", reference)
             return jsonify(error="M-Pesa checkout failed and could not be recorded. Please contact support."), 500
+        except ValueError:
+            db.session.rollback()
+            current_app.logger.exception("Could not restore inventory for failed M-Pesa request: %s", reference)
+            return jsonify(error="M-Pesa checkout failed and inventory could not be restored. Please contact support."), 500
         return jsonify(error=str(error)), 502
 
     payment.checkout_request_id = response["CheckoutRequestID"]
@@ -354,22 +441,19 @@ def mpesa_callback():
         current_app.logger.warning("Received M-Pesa callback for unknown checkout request")
         return jsonify(ResultCode=1, ResultDesc="Payment not found"), 404
 
-    if payment.status == "pending":
-        if result_code == 0:
-            payment.status = "success"
-        elif result_code == 1032:
-            payment.status = "cancelled"
-        else:
-            payment.status = "failed"
-        payment.mpesa_response = json.dumps(data)
-    else:
+    if payment.status != "pending":
         current_app.logger.info("Ignoring duplicate terminal M-Pesa callback for %s", payment.reference)
     try:
+        _set_checkout_payment_result(payment, result_code, data)
         db.session.commit()
     except SQLAlchemyError:
         db.session.rollback()
         current_app.logger.exception("Could not save M-Pesa callback")
         return jsonify(ResultCode=1, ResultDesc="Could not record payment result"), 500
+    except ValueError:
+        db.session.rollback()
+        current_app.logger.exception("Could not restore inventory for M-Pesa callback")
+        return jsonify(ResultCode=1, ResultDesc="Could not restore inventory"), 500
     return jsonify(ResultCode=0, ResultDesc="Success")
 
 
@@ -401,20 +485,18 @@ def query_payment(checkout_id):
     except (TypeError, ValueError):
         return jsonify(status="pending", message="M-Pesa returned an unrecognized status. Try again.")
 
-    if payment.status == "pending":
-        if result_code == 0:
-            payment.status = "success"
-        elif result_code == 1032:
-            payment.status = "cancelled"
-        else:
-            payment.status = "failed"
-        payment.mpesa_response = json.dumps(data)
     try:
+        _set_checkout_payment_result(payment, result_code, data)
         db.session.commit()
     except SQLAlchemyError:
         db.session.rollback()
         current_app.logger.exception("Could not save M-Pesa query result")
         return jsonify(error="Could not save the M-Pesa result. Please check again."), 500
+    except ValueError:
+        db.session.rollback()
+        current_app.logger.exception("Could not restore inventory for M-Pesa query result")
+        return jsonify(error="Could not restore inventory. Please contact support."), 500
+    db.session.refresh(payment)
     return _payment_status_response(payment)
 
 

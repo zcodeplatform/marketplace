@@ -75,6 +75,7 @@ def create_app(config_object=None):
     with app.app_context():
         db.create_all()
         _migrate_payment_buyer_id()
+        _migrate_product_stock()
         _migrate_product_categories()
     return app
 
@@ -123,6 +124,21 @@ def _migrate_payment_buyer_id():
     buyer_index.create(db.engine, checkfirst=True)
 
 
+def _migrate_product_stock():
+    """Add inventory to existing products as zero until sellers set their stock."""
+    from sqlalchemy import inspect
+
+    inspector = inspect(db.engine)
+    if "products" not in inspector.get_table_names():
+        return
+    columns = {column["name"] for column in inspector.get_columns("products")}
+    if "stock" not in columns:
+        with db.engine.begin() as connection:
+            connection.exec_driver_sql(
+                "ALTER TABLE products ADD COLUMN stock INTEGER NOT NULL DEFAULT 0"
+            )
+
+
 def register_cli(app):
     @app.cli.command("seed-demo")
     def seed_demo():
@@ -148,7 +164,7 @@ def register_cli(app):
                 continue
             db.session.add(Product(
                 title=title, slug=Product.make_slug(title), description=note, price=price,
-                category=cat, image_path=f"products/{img}.jpg", seller_id=seller.id,
+                category=cat, image_path=f"products/{img}.jpg", seller_id=seller.id, stock=1,
             ))
             db.session.flush()
             added += 1

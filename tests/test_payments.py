@@ -20,7 +20,7 @@ from models import (
     Product,
     User,
 )
-from mpesa import stk_push, stk_query
+from mpesa import MpesaError, stk_push, stk_query
 
 
 class TestConfig:
@@ -59,6 +59,7 @@ class PaymentCheckoutTests(unittest.TestCase):
             title="Test item",
             description="",
             price=Decimal("10.00"),
+            stock=10,
             category="Other",
             seller_id=seller.id,
         )
@@ -221,6 +222,7 @@ class PaymentCheckoutTests(unittest.TestCase):
             title="Second item",
             description="",
             price=Decimal("5.00"),
+            stock=10,
             category="Other",
             seller_id=second_seller.id,
         )
@@ -501,6 +503,7 @@ class PaymentCheckoutTests(unittest.TestCase):
                 "title": "Paid plan product",
                 "description": "Visible during the plan",
                 "price": "12.00",
+                "stock": "3",
                 "category": "Other",
                 "status": "active",
             },
@@ -508,6 +511,7 @@ class PaymentCheckoutTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 302)
         self.assertEqual(Product.query.filter_by(seller_id=self.seller.id).count(), MAX_SELLER_PRODUCTS + 1)
+        self.assertEqual(Product.query.filter_by(slug="paid-plan-product").one().stock, 3)
         profile_response = self.client.get("/profile")
         self.assertIn(b"Monthly listings", profile_response.data)
         self.assertIn(b"Unlimited listings are visible until", profile_response.data)
@@ -525,6 +529,93 @@ class PaymentCheckoutTests(unittest.TestCase):
         self.assertEqual(Payment.query.count(), 0)
 
     @patch("payments.stk_push")
+    def test_checkout_rejects_quantity_above_available_stock(self, push):
+        self.product.stock = 1
+        db.session.commit()
+
+        response = self._checkout(
+            expected_total="20.00",
+            items=[{"id": self.product.id, "qty": 2}],
+        )
+
+        self.assertEqual(response.status_code, 409)
+        self.assertIn("Insufficient stock", response.json["error"])
+        self.assertEqual(self.product.stock, 1)
+        push.assert_not_called()
+
+    @patch("payments.stk_push")
+    def test_checkout_rejects_product_already_out_of_stock(self, push):
+        self.product.stock = 0
+        db.session.commit()
+
+        response = self._checkout()
+
+        self.assertEqual(response.status_code, 409)
+        self.assertIn("already out of stock", response.json["error"])
+        push.assert_not_called()
+
+    def test_product_creation_requires_initial_stock(self):
+        response = self.client.post(
+            "/sell",
+            data={
+                "csrf_token": self._csrf_token(),
+                "title": "Stock required",
+                "description": "",
+                "price": "5.00",
+                "category": "Other",
+                "status": "active",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn(b"whole-number stock quantity", response.data)
+        self.assertEqual(Product.query.count(), 1)
+
+    @patch("payments.stk_push")
+    def test_pending_checkout_reserves_stock_until_payment_result(self, push):
+        push.return_value = {
+            "ResponseCode": "0",
+            "CheckoutRequestID": "ws_CO_stock",
+            "MerchantRequestID": "merchant_stock",
+        }
+
+        response = self._checkout()
+
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(self.product.stock, 9)
+
+    @patch("payments.stk_push", side_effect=MpesaError("M-Pesa unavailable"))
+    def test_failed_checkout_restores_reserved_stock(self, push):
+        response = self._checkout()
+
+        self.assertEqual(response.status_code, 502)
+        self.assertEqual(self.product.stock, 10)
+        self.assertEqual(Payment.query.one().status, "failed")
+
+    @patch("payments.stk_push")
+    def test_cancelled_payment_restores_reserved_stock_only_once(self, push):
+        push.return_value = {
+            "ResponseCode": "0",
+            "CheckoutRequestID": "ws_CO_stock_cancel",
+            "MerchantRequestID": "merchant_stock_cancel",
+        }
+        checkout = self._checkout()
+        callback_data = {
+            "Body": {
+                "stkCallback": {
+                    "CheckoutRequestID": checkout.json["checkout_id"],
+                    "ResultCode": 1032,
+                    "ResultDesc": "Request cancelled by user",
+                },
+            },
+        }
+
+        self.assertEqual(self.client.post("/mpesa/callback", json=callback_data).status_code, 200)
+        self.assertEqual(self.product.stock, 10)
+        self.assertEqual(self.client.post("/mpesa/callback", json=callback_data).status_code, 200)
+        self.assertEqual(self.product.stock, 10)
+
+    @patch("payments.stk_push")
     def test_invalid_phone_does_not_start_payment(self, push):
         response = self._checkout(phone="not-a-phone")
 
@@ -537,6 +628,15 @@ class PaymentCheckoutTests(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"data-checkout-url", response.data)
         self.assertIn(b"data-csrf-token", response.data)
+
+    def test_product_purchase_controls_expose_available_stock_limit(self):
+        detail = self.client.get("/p/test-item")
+        browse = self.client.get("/browse")
+
+        self.assertEqual(detail.status_code, 200)
+        self.assertIn(b'max="10"', detail.data)
+        self.assertIn(b'data-stock="10"', detail.data)
+        self.assertIn(b'data-stock="10"', browse.data)
 
     def test_major_categories_are_visible_on_home_and_browse(self):
         for path in ("/", "/browse"):
@@ -635,6 +735,7 @@ class PaymentCheckoutTests(unittest.TestCase):
 
         self.assertEqual(callback.status_code, 200)
         self.assertEqual(Payment.query.one().status, "success")
+        self.assertEqual(self.product.stock, 9)
         status = self.client.get(f"/api/payments/{checkout.json['checkout_id']}")
         self.assertEqual(status.json["status"], "success")
 

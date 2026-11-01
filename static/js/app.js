@@ -40,10 +40,14 @@ function savePayment() {
 const count = () => state.lines.reduce((n, l) => n + l.qty, 0);
 
 function add(item, quantity = 1) {
-  quantity = Math.max(1, Math.floor(Number(quantity) || 1));
+  const stock = Number(item.stock);
+  if (!Number.isSafeInteger(stock) || stock < 1) return;
+  quantity = Math.min(stock, Math.max(1, Math.floor(Number(quantity) || 1)));
   const line = state.lines.find((l) => l.id === item.id);
-  if (line) line.qty += quantity;
-  else state.lines.push({ ...item, qty: quantity });
+  if (line) {
+    line.stock = stock;
+    line.qty = Math.min(stock, line.qty + quantity);
+  } else state.lines.push({ ...item, stock, qty: quantity });
   state.done = false;
   save();
   paintCount();
@@ -53,7 +57,11 @@ function add(item, quantity = 1) {
 
 function setQty(id, qty) {
   if (qty < 1) state.lines = state.lines.filter((l) => l.id !== id);
-  else state.lines = state.lines.map((l) => (l.id === id ? { ...l, qty } : l));
+  else state.lines = state.lines.map((l) => (
+    l.id === id
+      ? { ...l, qty: Number.isSafeInteger(l.stock) ? Math.min(qty, l.stock) : qty }
+      : l
+  ));
   save();
   paintCount();
   paintCart();
@@ -150,7 +158,7 @@ function paintCart() {
           <div class="qty">
             <button type="button" aria-label="Decrease quantity of ${esc(l.name)}" data-dec="${esc(l.id)}">−</button>
             <span aria-live="polite">${l.qty}</span>
-            <button type="button" aria-label="Increase quantity of ${esc(l.name)}" data-inc="${esc(l.id)}">+</button>
+            <button type="button" aria-label="Increase quantity of ${esc(l.name)}" data-inc="${esc(l.id)}" ${Number.isSafeInteger(l.stock) && l.qty >= l.stock ? "disabled" : ""}>+</button>
           </div>
           <p class="line-total">${money(l.price * l.qty)}</p>
         </div>
@@ -207,7 +215,7 @@ function paintCartPage() {
               <div class="qty">
                 <button type="button" aria-label="Decrease quantity" data-dec="${esc(line.id)}">−</button>
                 <span>${line.qty}</span>
-                <button type="button" aria-label="Increase quantity" data-inc="${esc(line.id)}">+</button>
+                <button type="button" aria-label="Increase quantity" data-inc="${esc(line.id)}" ${Number.isSafeInteger(line.stock) && line.qty >= line.stock ? "disabled" : ""}>+</button>
               </div>
               <p class="line-total">${money(line.price * line.qty)}</p>
             </div>
@@ -411,8 +419,18 @@ async function queryPayment(event) {
 document.addEventListener("click", (e) => {
   const btn = e.target.closest("[data-add]");
   if (!btn) return;
-  const quantity = btn.closest(".detail-info")?.querySelector("[data-product-quantity]")?.value || 1;
-  add({ id: btn.dataset.id, name: btn.dataset.name, price: Number(btn.dataset.price), image: btn.dataset.image }, quantity);
+  const quantityInput = btn.closest(".detail-info")?.querySelector("[data-product-quantity]");
+  const quantity = quantityInput?.value || 1;
+  if (quantityInput) {
+    quantityInput.value = String(Math.min(Number(btn.dataset.stock), Math.max(1, Math.floor(Number(quantity) || 1))));
+  }
+  add({
+    id: btn.dataset.id,
+    name: btn.dataset.name,
+    price: Number(btn.dataset.price),
+    image: btn.dataset.image,
+    stock: Number(btn.dataset.stock),
+  }, quantity);
 });
 
 document.addEventListener("click", (event) => {

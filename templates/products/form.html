@@ -10,6 +10,7 @@
     <label>Description<textarea name="description" rows="5">{{ v.get('description', product.description if product else '') }}</textarea></label>
     <div class="row">
       <label>Price ({{ currency }})<input type="number" name="price" step="0.01" min="0" required value="{{ v.get('price', product.price if product else '') }}" /></label>
+      <label>Stock quantity<input type="number" name="stock" step="1" min="0" required value="{{ v.get('stock', product.stock if product else '') }}" /></label>
       <label>Category
         {% set cur = v.get('category', product.category if product else 'Other') %}
         <select name="category">{% for c in categories %}<option value="{{ c }}" {{ 'selected' if c == cur }}>{{ c }}</option>{% endfor %}</select>

@@ -10,7 +10,7 @@
 <section class="wrap page detail">
   <div class="detail-img">
     <img src="{{ product.image_url }}" alt="{{ product.title }}" />
-    {% if product.is_sold %}<span class="tag tag-sold">Sold</span>{% endif %}
+    {% if product.is_sold %}<span class="tag tag-sold">Sold</span>{% elif not product.is_available %}<span class="tag tag-sold">Out of stock</span>{% endif %}
   </div>
   <div class="detail-info">
     <div class="product-purchase">
@@ -19,23 +19,26 @@
       <p class="detail-price">{{ product.price|money }}</p>
       {% if product.is_sold %}
         <p class="availability sold-label">This item has been sold</p>
+      {% elif not product.is_available %}
+        <p class="availability sold-label">This item is out of stock</p>
       {% else %}
-        <p class="availability"><span aria-hidden="true"></span> Available from the seller</p>
+        <p class="availability"><span aria-hidden="true"></span> Available from the seller · {{ product.stock }} in stock</p>
       {% endif %}
-      {% if not product.is_sold %}
+      {% if product.is_available %}
         <div class="product-quantity">
           <label for="product-quantity">Quantity</label>
           <div class="qty-stepper">
             <button type="button" aria-label="Decrease quantity" data-quantity-decrease>-</button>
-            <input id="product-quantity" type="number" min="1" step="1" value="1" inputmode="numeric" data-product-quantity />
+            <input id="product-quantity" type="number" min="1" max="{{ product.stock }}" step="1" value="1" inputmode="numeric" data-product-quantity />
             <button type="button" aria-label="Increase quantity" data-quantity-increase>+</button>
           </div>
         </div>
       {% endif %}
       <div class="detail-actions">
-        {% if not product.is_sold %}
+        {% if product.is_available %}
           <button class="btn" type="button" data-add
-                  data-id="{{ product.id }}" data-name="{{ product.title }}" data-price="{{ product.price }}" data-image="{{ product.image_url }}">Add to bag</button>
+                  data-id="{{ product.id }}" data-name="{{ product.title }}" data-price="{{ product.price }}" data-image="{{ product.image_url }}"
+                  data-stock="{{ product.stock }}">Add to bag</button>
         {% endif %}
         <button class="btn btn-outline" type="button" data-share data-url="{{ product.public_url }}" data-title="{{ product.title }}">Copy link</button>
       </div>

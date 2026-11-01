@@ -105,6 +105,7 @@ class Product(db.Model):
     title = db.Column(db.String(150), nullable=False)
     description = db.Column(db.Text, nullable=False, default="")
     price = db.Column(db.Numeric(10, 2), nullable=False)
+    stock = db.Column(db.Integer, nullable=False, default=0)
     image_path = db.Column(db.String(255), nullable=True)  # local path or r2:<object key>
     category = db.Column(db.String(50), nullable=False, default="Other", index=True)
     status = db.Column(db.String(10), nullable=False, default=STATUS_ACTIVE, index=True)
@@ -117,6 +118,10 @@ class Product(db.Model):
     @property
     def is_sold(self):
         return self.status == STATUS_SOLD
+
+    @property
+    def is_available(self):
+        return self.status == STATUS_ACTIVE and self.stock > 0
 
     @property
     def image_url(self):

@@ -113,8 +113,10 @@
         <span class="mp-title">{{ p.title }}</span>
         <span class="status-pill status-failed">Hidden until plan renewal</span>
         {% endif %}
-        <p class="muted">{{ p.category }} · {{ p.price|money }}
-          <span class="status-pill status-{{ p.status }}">{{ p.status }}</span></p>
+        <p class="muted">{{ p.category }} · {{ p.price|money }} · Stock: {{ p.stock }}
+          <span class="status-pill status-{{ 'failed' if not p.is_available and not p.is_sold else p.status }}">
+            {{ 'out of stock' if not p.is_available and not p.is_sold else p.status }}
+          </span></p>
         <p class="product-view-count">{{ product_view_counts.get(p.id, 0) }} unique views</p>
       </div>
       <div class="mp-actions">

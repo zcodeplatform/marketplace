@@ -2,15 +2,16 @@
 <li class="card">
   <a href="{{ url_for('main.product_detail', slug=p.slug) }}" class="card-img">
     <img src="{{ p.image_url }}" alt="{{ p.title }}" loading="lazy" />
-    {% if p.is_sold %}<span class="tag tag-sold">Sold</span>{% endif %}
+    {% if p.is_sold %}<span class="tag tag-sold">Sold</span>{% elif not p.is_available %}<span class="tag tag-sold">Out of stock</span>{% endif %}
   </a>
   <p class="cat">{{ p.category }}</p>
   <h3><a href="{{ url_for('main.product_detail', slug=p.slug) }}">{{ p.title }}</a></h3>
   <p class="note">{{ p.description|truncate(70) }}</p>
   <p class="price">{{ p.price|money }}</p>
-  {% if not p.is_sold %}
+  {% if p.is_available %}
     <button class="add" type="button" data-add
-            data-id="{{ p.id }}" data-name="{{ p.title }}" data-price="{{ p.price }}" data-image="{{ p.image_url }}">Add to bag</button>
+            data-id="{{ p.id }}" data-name="{{ p.title }}" data-price="{{ p.price }}" data-image="{{ p.image_url }}"
+            data-stock="{{ p.stock }}">Add to bag</button>
   {% endif %}
 </li>
 {% endmacro %}
