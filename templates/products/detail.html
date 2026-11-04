@@ -12,7 +12,7 @@
 <section class="wrap page detail">
   <div class="detail-img">
     <img src="{{ product.image_url }}" alt="{{ product.title }}" />
-    {% if product.is_sold %}<span class="tag tag-sold">Sold</span>{% elif not product.is_available %}<span class="tag tag-sold">Out of stock</span>{% endif %}
+    {% if product.is_sold %}<span class="tag tag-sold">Sold</span>{% elif not product.is_available %}<span class="tag tag-sold tag-out-of-stock">Out of stock</span>{% endif %}
   </div>
   <div class="detail-info">
     <div class="product-purchase">

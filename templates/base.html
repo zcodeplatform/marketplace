@@ -9,6 +9,8 @@
   <title>{% block title %}Marketplace{% endblock %} · Comrade Marketplace</title>
   <link rel="icon" href="{{ url_for('static', filename='img/logo.webp') }}" />
   <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}" />
+  <script src="{{ url_for('static', filename='js/image-fallback.js') }}"
+          data-fallback-src="{{ url_for('static', filename='img/placeholder.svg') }}"></script>
   {% block head %}{% endblock %}
 </head>
 <body data-currency="{{ currency }}" data-cart-url="{{ url_for('main.cart') }}" data-browse-url="{{ url_for('main.browse') }}"

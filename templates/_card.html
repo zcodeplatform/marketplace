@@ -2,7 +2,7 @@
 <li class="card">
   <a href="{{ url_for('main.product_detail', slug=p.slug) }}" class="card-img">
     <img src="{{ p.image_url }}" alt="{{ p.title }}" loading="lazy" />
-    {% if p.is_sold %}<span class="tag tag-sold">Sold</span>{% elif not p.is_available %}<span class="tag tag-sold">Out of stock</span>{% endif %}
+    {% if p.is_sold %}<span class="tag tag-sold">Sold</span>{% elif not p.is_available %}<span class="tag tag-sold tag-out-of-stock">Out of stock</span>{% endif %}
     {% if p.discount_percent > 0 %}<span class="tag tag-sale">-{{ p.discount_label }}%</span>{% endif %}
   </a>
   <button class="wishlist-toggle{% if p.id in wishlist_ids %} is-saved{% endif %}" type="button"
