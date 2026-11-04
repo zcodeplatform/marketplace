@@ -150,6 +150,46 @@ class StorefrontFeatureTests(unittest.TestCase):
         self.assertIn(b"Thirty discounted", filtered.data)
         self.assertNotIn(b"Ten with discount", filtered.data)
 
+    def test_full_page_templates_define_description_metadata(self):
+        templates = (
+            "index.html",
+            "browse.html",
+            "cart.html",
+            "products/detail.html",
+            "products/form.html",
+            "auth/login.html",
+            "auth/signup.html",
+            "auth/terms.html",
+            "profile/view.html",
+            "profile/edit.html",
+            "admin/ads.html",
+            "admin/edit_ad.html",
+            "admin/analytics.html",
+            "error.html",
+        )
+
+        for name in templates:
+            with self.subTest(template=name):
+                template = self.app.jinja_env.get_template(name)
+                self.assertIn("description", template.blocks)
+
+    def test_product_and_browse_pages_render_meaningful_descriptions(self):
+        product = self._add_product("Handmade desk lamp", "40.00")
+        product.description = "A handmade brass desk lamp with a warm linen shade."
+        db.session.commit()
+
+        pages = (
+            (self.client.get("/"), b"Discover great local deals"),
+            (self.client.get("/browse"), b"Browse Comrade Marketplace listings"),
+            (self.client.get("/wishlist"), b"View your saved products"),
+            (self.client.get("/p/handmade-desk-lamp"), b"handmade brass desk lamp"),
+        )
+        for response, expected_description in pages:
+            with self.subTest(expected=expected_description):
+                self.assertEqual(response.status_code, 200)
+                self.assertIn(b'<meta name="description" content="', response.data)
+                self.assertIn(expected_description, response.data)
+
     def test_browse_inverted_price_range_returns_empty_results(self):
         self._add_product("Price range item", "95.00")
         db.session.commit()

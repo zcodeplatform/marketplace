@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}{{ code }}{% endblock %}
+{% block description %}{{ message|striptags|truncate(160, true) }}{% endblock %}
 {% block content %}
 <section class="wrap center page">
   <h1>{{ code }}</h1>

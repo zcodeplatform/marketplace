@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}{{ listing_title }}{% endblock %}
+{% block description %}{% if listing_title == "Your favourites" %}View your saved products on Comrade Marketplace and find them quickly when you are ready to shop.{% else %}Browse Comrade Marketplace listings by category, price, and sale status to find products and local deals.{% endif %}{% endblock %}
 {% block content %}
 <section class="wrap page">
   <div class="browse-heading">

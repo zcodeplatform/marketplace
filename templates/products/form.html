@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% block title %}{{ 'Edit product' if product else 'Sell a product' }}{% endblock %}
+{% block description %}{% if product %}Update the details, price, stock, discount, or image for your Comrade Marketplace listing.{% else %}Create a Comrade Marketplace listing with product details, price, stock, discount, and an image.{% endif %}{% endblock %}
 {% block content %}
 {% set v = form if form else {} %}
 <section class="auth-card wide">
