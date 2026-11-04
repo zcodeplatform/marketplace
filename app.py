@@ -1,6 +1,6 @@
 import click
 from dotenv import load_dotenv
-from flask import Flask, render_template
+from flask import Flask, render_template, session
 from flask_login import current_user
 
 from extensions import csrf, db, login_manager, oauth
@@ -41,9 +41,17 @@ def create_app(config_object=None):
 
     @app.context_processor
     def inject_globals():
+        wishlist = session.get("wishlist", [])
+        wishlist_ids = {
+            product_id for product_id in wishlist
+            if isinstance(wishlist, list) and isinstance(product_id, int) and not isinstance(product_id, bool)
+            and product_id > 0
+        } if isinstance(wishlist, list) else set()
         return {
             "google_enabled": bool(app.config["GOOGLE_CLIENT_ID"] and app.config["GOOGLE_CLIENT_SECRET"]),
             "currency": app.config["CURRENCY_SYMBOL"],
+            "wishlist_ids": wishlist_ids,
+            "wishlist_count": len(wishlist_ids),
             "is_admin": bool(
                 current_user.is_authenticated
                 and current_user.email.lower() in parse_admin_emails(app.config.get("ADMIN_EMAILS", ""))
@@ -57,6 +65,20 @@ def create_app(config_object=None):
     def money(value):
         text = f"{value:,.2f}"
         return app.config["CURRENCY_SYMBOL"] + (text[:-3] if text.endswith(".00") else text)
+
+    def is_admin_account(user):
+        email = getattr(user, "email", None)
+        return bool(
+            email
+            and email.lower() in parse_admin_emails(app.config.get("ADMIN_EMAILS", ""))
+        )
+
+    app.jinja_env.globals["is_admin_account"] = is_admin_account
+
+    @app.errorhandler(400)
+    def bad_request(error):
+        message = getattr(error, "description", None) or "We couldn't process your request. Check your input and try again."
+        return render_template("error.html", code=400, message=message), 400
 
     @app.errorhandler(403)
     def forbidden(_):
@@ -76,6 +98,7 @@ def create_app(config_object=None):
         db.create_all()
         _migrate_payment_buyer_id()
         _migrate_product_stock()
+        _migrate_product_discount()
         _migrate_product_categories()
     return app
 
@@ -136,6 +159,22 @@ def _migrate_product_stock():
         with db.engine.begin() as connection:
             connection.exec_driver_sql(
                 "ALTER TABLE products ADD COLUMN stock INTEGER NOT NULL DEFAULT 0"
+            )
+
+
+def _migrate_product_discount():
+    """Add discounts to existing listings without changing their current prices."""
+    from sqlalchemy import inspect
+
+    inspector = inspect(db.engine)
+    if "products" not in inspector.get_table_names():
+        return
+    columns = {column["name"] for column in inspector.get_columns("products")}
+    if "discount_percent" not in columns:
+        with db.engine.begin() as connection:
+            connection.exec_driver_sql(
+                "ALTER TABLE products ADD COLUMN discount_percent NUMERIC(5, 2) "
+                "NOT NULL DEFAULT 0.00"
             )
 
 

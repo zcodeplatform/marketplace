@@ -1,7 +1,14 @@
-{% from "_card.html" import product_card %}
-<p class="results-count">{{ products|length }} {{ 'piece' if products|length == 1 else 'pieces' }} found</p>
+{% from "_card.html" import product_card with context %}
+<p class="results-count">{{ total }} {{ 'piece' if total == 1 else 'pieces' }} found</p>
 {% if products %}
   <ul class="grid">{% for p in products %}{{ product_card(p) }}{% endfor %}</ul>
+  {% if pages > 1 %}
+  <nav class="pagination" aria-label="Product pages">
+    {% for item in page_links %}
+      <a href="{{ item.url }}" {% if item.current %}aria-current="page"{% endif %}>{{ item.number }}</a>
+    {% endfor %}
+  </nav>
+  {% endif %}
 {% else %}
-  <p class="empty-note">No products match your search.</p>
+  <p class="empty-note">{{ empty_message }}</p>
 {% endif %}

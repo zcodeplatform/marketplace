@@ -1,18 +1,32 @@
 {% extends "base.html" %}
 {% block title %}Sign up{% endblock %}
 {% block content %}
-<section class="auth-card">
-  <h1>Create your account</h1>
-  {% include "auth/_google.html" %}
-  <form method="post">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-    <input type="hidden" name="next" value="{{ request.args.get('next', '') }}" />
-    <label>Name<input type="text" name="name" value="{{ name or '' }}" required maxlength="120" autocomplete="name" /></label>
-    <label>Email<input type="email" name="email" value="{{ email or '' }}" required autocomplete="email" /></label>
-    <label>Password<input type="password" name="password" required minlength="8" autocomplete="new-password" />
-      <small>At least 8 characters.</small></label>
-    <button class="btn btn-block" type="submit">Sign up</button>
-  </form>
-  <p class="auth-alt">Already have an account? <a class="link" href="{{ url_for('auth.login', next=request.args.get('next')) }}">Log in</a></p>
+<section class="auth-page auth-page-signup" aria-labelledby="auth-title">
+  <div class="auth-panel">
+    <div class="auth-heading">
+      <h1 id="auth-title">Create account</h1>
+    </div>
+    <form method="post" class="auth-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <input type="hidden" name="next" value="{{ request.args.get('next', '') }}" />
+      {% include "auth/_google.html" %}
+      <label>Name
+        <input type="text" name="name" value="{{ name or '' }}" required maxlength="120" autocomplete="name" placeholder="Your name" />
+      </label>
+      <label>Email
+        <input type="email" name="email" value="{{ email or '' }}" required autocomplete="email" placeholder="you@example.com" />
+      </label>
+      <label>Password
+        <input type="password" name="password" required minlength="8" autocomplete="new-password" placeholder="Create a password" />
+        <small>At least 8 characters.</small>
+      </label>
+      <div class="auth-consent">
+        <label class="check"><input type="checkbox" name="agree_terms" required {% if terms_accepted %}checked{% endif %} /> <span>I agree to the <a class="link" href="{{ url_for('auth.terms') }}" target="_blank" rel="noopener noreferrer">Terms and Conditions</a>.</span></label>
+        <label class="check"><input type="checkbox" name="confirm_age" required {% if age_confirmed %}checked{% endif %} /> <span>I confirm that I am at least 13 years old.</span></label>
+      </div>
+      <button class="btn btn-block auth-submit" type="submit">Create account</button>
+    </form>
+    <p class="auth-alt">Already registered? <a class="link" href="{{ url_for('auth.login', next=request.args.get('next')) }}">Log in</a></p>
+  </div>
 </section>
 {% endblock %}

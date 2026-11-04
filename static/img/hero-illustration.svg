@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 650" fill="none">
+  <defs>
+    <filter id="shadow" x="125" y="115" width="550" height="510" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="13"/>
+      <feOffset dy="15"/>
+      <feComponentTransfer>
+        <feFuncA type="linear" slope=".14"/>
+      </feComponentTransfer>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <ellipse cx="402" cy="588" rx="211" ry="25" fill="#243B32" opacity=".12"/>
+  <circle cx="166" cy="230" r="8" fill="#E8AE63"/>
+  <circle cx="656" cy="205" r="6" fill="#E8AE63"/>
+  <path d="M288 302v-77c0-78 48-130 112-130s112 52 112 130v77" stroke="#075D49" stroke-linecap="round" stroke-width="24"/>
+  <g filter="url(#shadow)">
+    <g transform="rotate(-8 283 242)">
+      <rect x="220" y="131" width="128" height="202" rx="13" fill="#E7B86A"/>
+      <rect x="231" y="143" width="106" height="177" rx="7" fill="#F8E8C9"/>
+      <path d="M249 178h71M249 193h55" stroke="#C88945" stroke-linecap="round" stroke-width="7"/>
+      <path d="M258 276c14-25 34-28 48-7 12-17 22-18 31-4v49h-79z" fill="#91AD83"/>
+    </g>
+    <g transform="rotate(7 531 240)">
+      <rect x="479" y="160" width="105" height="181" rx="27" fill="#D88B64"/>
+      <rect x="505" y="135" width="54" height="37" rx="9" fill="#B96749"/>
+      <rect x="516" y="124" width="32" height="17" rx="6" fill="#B96749"/>
+      <rect x="490" y="219" width="83" height="43" rx="8" fill="#F3D9C2"/>
+      <path d="M510 239h43" stroke="#B96749" stroke-linecap="round" stroke-width="6"/>
+    </g>
+    <path d="m349 194 43-27 42 27 36-4 31 48-37 25-16-19v108H335V244l-17 19-36-25 31-48z" fill="#E8A18A"/>
+    <path d="m392 167 20 24 22-24M378 194l-16 31m80-31 16 31" stroke="#C97665" stroke-linecap="round" stroke-linejoin="round" stroke-width="7"/>
+    <path d="M179 280h442l-38 285H217z" fill="#08745B"/>
+    <path d="M179 280h442l-35 54H214z" fill="#0B8064"/>
+    <path d="m581 334 40-54-38 285-36 0z" fill="#075D49" opacity=".62"/>
+    <rect x="301" y="401" width="198" height="102" rx="22" fill="#F6F1E8"/>
+    <path d="M342 438h116" stroke="#08745B" stroke-linecap="round" stroke-width="11"/>
+    <path d="M364 465h73" stroke="#94A59A" stroke-linecap="round" stroke-width="8"/>
+    <circle cx="400" cy="452" r="4" fill="#E8AE63"/>
+  </g>
+  <path d="m153 328 8 15 16 2-12 11 3 16-15-8-14 8 3-16-12-11 16-2 7-15z" fill="#E8AE63" opacity=".8"/>
+  <path d="m658 338 6 11 12 2-9 8 2 12-11-6-11 6 2-12-9-8 12-2 6-11z" fill="#D88B64" opacity=".75"/>
+</svg>

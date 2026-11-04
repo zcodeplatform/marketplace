@@ -1,34 +1,82 @@
 {% extends "base.html" %}
 {% block title %}Edit profile{% endblock %}
 {% block content %}
-<section class="auth-card">
-  <h1>Edit profile</h1>
-  <form method="post" enctype="multipart/form-data">
+<section class="profile-edit-page">
+  <div class="profile-edit-heading">
+    <a class="profile-edit-back" href="{{ url_for('profile.view') }}" aria-label="Back to profile">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m15 18-6-6 6-6"/><path d="M20 12H9"/></svg>
+      Back to profile
+    </a>
+    <p class="profile-edit-kicker">Account settings</p>
+    <h1>Edit your profile</h1>
+    <p>Update the details people see when they visit your profile or listings.</p>
+  </div>
+
+  <form class="profile-edit-form" method="post" enctype="multipart/form-data">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-    <div class="avatar-edit">
-      {% set u = current_user %}
-      <div class="avatar-lg">{% include "_avatar.html" with context %}</div>
-      <div>
-        <input type="file" name="avatar" accept="{{ image_accept }}" />
+    <div class="profile-edit-layout">
+      <aside class="profile-photo-card">
+        <div class="profile-photo-heading">
+          <div class="avatar-lg">{% set u = current_user %}{% include "_avatar.html" with context %}</div>
+          <div>
+            <h2>Profile photo</h2>
+            <p>Make your account easy to recognize.</p>
+          </div>
+        </div>
+        <label class="profile-photo-upload">
+          <span data-file-picker-label>Choose a photo</span>
+          <input type="file" name="avatar" accept="{{ image_accept }}" />
+        </label>
+        <small class="profile-photo-hint">PNG, JPG, WEBP or GIF.</small>
         {% if current_user.avatar_path %}
-          <label class="check"><input type="checkbox" name="remove_avatar" /> Remove uploaded photo{% if current_user.picture_url %} (use Google photo){% endif %}</label>
+        <label class="profile-remove-photo">
+          <input type="checkbox" name="remove_avatar" {{ 'checked' if request.form.get('remove_avatar') }} />
+          <span>Remove uploaded photo{% if current_user.picture_url %}<small>Use your Google photo instead</small>{% endif %}</span>
+        </label>
         {% endif %}
+      </aside>
+
+      <div class="profile-edit-fields">
+        <section class="profile-edit-section" aria-labelledby="profile-details-title">
+          <div class="profile-edit-section-heading">
+            <h2 id="profile-details-title">Personal details</h2>
+            <p>Your name and short introduction.</p>
+          </div>
+          <label class="profile-edit-label">Name
+            <input type="text" name="name" maxlength="120" required autocomplete="name" value="{{ request.form.get('name', current_user.name) }}" />
+          </label>
+          <label class="profile-edit-label">Email
+            <input type="email" value="{{ current_user.email }}" disabled autocomplete="email" />
+            <small>Email can't be changed.</small>
+          </label>
+          <label class="profile-edit-label">Bio
+            <textarea name="bio" rows="4" maxlength="500" placeholder="A few words about you">{{ request.form.get('bio', current_user.bio or '') }}</textarea>
+            <small>Up to 500 characters.</small>
+          </label>
+        </section>
+
+        <section class="profile-edit-section" aria-labelledby="profile-contact-title">
+          <div class="profile-edit-section-heading">
+            <h2 id="profile-contact-title">Contact</h2>
+            <p>Choose whether buyers can reach you directly.</p>
+          </div>
+          <label class="profile-edit-label">Phone number
+            <input type="tel" name="phone" maxlength="20" placeholder="+254 712 345 678" autocomplete="tel"
+                   value="{{ request.form.get('phone', current_user.phone or '') }}" />
+            <small>Include your country code for WhatsApp.</small>
+          </label>
+          <label class="profile-phone-visibility">
+            <input type="checkbox" name="show_phone" {{ 'checked' if (request.form.get('show_phone') if request.method == 'POST' else current_user.show_phone) }} />
+            <span>Show my phone number on my product pages</span>
+          </label>
+        </section>
+
+        <div class="profile-edit-actions">
+          <a class="profile-edit-cancel" href="{{ url_for('profile.view') }}">Cancel</a>
+          <button class="btn" type="submit">Save changes</button>
+        </div>
       </div>
     </div>
-    <label>Name<input type="text" name="name" maxlength="120" required value="{{ request.form.get('name', current_user.name) }}" /></label>
-    <label>Email<input type="email" value="{{ current_user.email }}" disabled /><small>Email can't be changed.</small></label>
-    <label>Bio<textarea name="bio" rows="3" maxlength="500">{{ request.form.get('bio', current_user.bio or '') }}</textarea></label>
-    <label>Phone
-      <input type="tel" name="phone" maxlength="20" placeholder="+254 712 345 678"
-             value="{{ request.form.get('phone', current_user.phone or '') }}" />
-      <small>Include the country code so buyers can reach you on WhatsApp.</small>
-    </label>
-    <label class="check">
-      <input type="checkbox" name="show_phone" {{ 'checked' if current_user.show_phone }} />
-      Show my phone number on my product pages
-    </label>
-    <button class="btn btn-block" type="submit">Save changes</button>
-    <a class="auth-alt link" href="{{ url_for('profile.view') }}">Cancel</a>
   </form>
 </section>
 {% endblock %}

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_admin_badge.html" import admin_badge %}
 {% block title %}Your profile{% endblock %}
 {% block content %}
 <section class="wrap page">
@@ -6,7 +7,7 @@
     {% set u = current_user %}
     <div class="avatar-lg">{% include "_avatar.html" with context %}</div>
     <div>
-      <h1>{{ current_user.name }}</h1>
+      <h1>{{ current_user.name }}{{ admin_badge(current_user) }}</h1>
       <p class="muted">{{ current_user.email }}</p>
       {% if current_user.phone %}
         <p class="muted">{{ current_user.phone }}{% if not current_user.show_phone %} · hidden from buyers{% endif %}</p>
@@ -113,7 +114,7 @@
         <span class="mp-title">{{ p.title }}</span>
         <span class="status-pill status-failed">Hidden until plan renewal</span>
         {% endif %}
-        <p class="muted">{{ p.category }} · {{ p.price|money }} · Stock: {{ p.stock }}
+        <p class="muted">{{ p.category }} · {{ p.discounted_price|money }}{% if p.discount_percent > 0 %} ({{ p.discount_label }}% off){% endif %} · Stock: {{ p.stock }}
           <span class="status-pill status-{{ 'failed' if not p.is_available and not p.is_sold else p.status }}">
             {{ 'out of stock' if not p.is_available and not p.is_sold else p.status }}
           </span></p>

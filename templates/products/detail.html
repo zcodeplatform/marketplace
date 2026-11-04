@@ -1,7 +1,8 @@
 {% extends "base.html" %}
+{% from "_admin_badge.html" import admin_badge %}
 {% block title %}{{ product.title }}{% endblock %}
 {% block head %}
-  <meta property="og:title" content="{{ product.title }} · {{ product.price|money }}" />
+  <meta property="og:title" content="{{ product.title }} · {{ product.discounted_price|money }}" />
   <meta property="og:description" content="{{ product.description|truncate(150) }}" />
   <meta property="og:image" content="{{ product.image_external_url }}" />
   <link rel="canonical" href="{{ product.public_url }}" />
@@ -16,7 +17,13 @@
     <div class="product-purchase">
       <p class="cat">{{ product.category }}</p>
       <h1>{{ product.title }}</h1>
-      <p class="detail-price">{{ product.price|money }}</p>
+      <p class="detail-price">
+        <span>{{ product.discounted_price|money }}</span>
+        {% if product.discount_percent > 0 %}
+          <del>{{ product.price|money }}</del>
+          <span class="discount-chip">{{ product.discount_label }}% off</span>
+        {% endif %}
+      </p>
       {% if product.is_sold %}
         <p class="availability sold-label">This item has been sold</p>
       {% elif not product.is_available %}
@@ -37,9 +44,17 @@
       <div class="detail-actions">
         {% if product.is_available %}
           <button class="btn" type="button" data-add
-                  data-id="{{ product.id }}" data-name="{{ product.title }}" data-price="{{ product.price }}" data-image="{{ product.image_url }}"
+                  data-id="{{ product.id }}" data-name="{{ product.title }}" data-price="{{ product.discounted_price }}"
+                  data-original-price="{{ product.price if product.discount_percent > 0 else '' }}" data-image="{{ product.image_url }}"
                   data-stock="{{ product.stock }}">Add to bag</button>
         {% endif %}
+        <button class="wishlist-toggle detail-wishlist{% if product.id in wishlist_ids %} is-saved{% endif %}"
+                type="button" data-wishlist-toggle data-id="{{ product.id }}" data-title="{{ product.title }}"
+                aria-pressed="{{ 'true' if product.id in wishlist_ids else 'false' }}"
+                aria-label="{{ 'Remove ' if product.id in wishlist_ids else 'Save ' }}{{ product.title }} {{ 'from' if product.id in wishlist_ids else 'to' }} favourites">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.8 4.7a5.4 5.4 0 0 0-7.6 0L12 5.9l-1.2-1.2a5.4 5.4 0 0 0-7.6 7.6l1.2 1.2L12 21l7.6-7.5 1.2-1.2a5.4 5.4 0 0 0 0-7.6Z"/></svg>
+          <span>{{ 'Saved' if product.id in wishlist_ids else 'Save' }}</span>
+        </button>
         <button class="btn btn-outline" type="button" data-share data-url="{{ product.public_url }}" data-title="{{ product.title }}">Copy link</button>
       </div>
       <div class="delivery-note">
@@ -55,7 +70,7 @@
 
     <section class="seller-card" aria-label="Seller information">
       <p class="seller-card-label">Seller</p>
-      <strong>{{ product.seller.name }}</strong>
+      <strong>{{ product.seller.name }}{{ admin_badge(product.seller) }}</strong>
       <p class="seller-line">Listed {{ product.created_at.strftime('%b %d, %Y') }}</p>
     {% if product.seller.show_phone and product.seller.phone %}
       {% set digits = product.seller.phone|replace('+','')|replace(' ','')|replace('-','') %}

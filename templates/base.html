@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+{% from "_admin_badge.html" import admin_badge %}
 <html lang="en">
 <head>
   <meta charset="utf-8" />
@@ -10,6 +11,7 @@
   {% block head %}{% endblock %}
 </head>
 <body data-currency="{{ currency }}" data-cart-url="{{ url_for('main.cart') }}" data-browse-url="{{ url_for('main.browse') }}"
+      data-wishlist-url="{{ url_for('main.wishlist_toggle') }}"
       data-checkout-url="{{ url_for('payments.start_stk_push') }}"
       data-payment-status-url="{{ url_for('payments.payment_status', checkout_id='CHECKOUT_ID') }}"
       data-payment-query-url="{{ url_for('payments.query_payment', checkout_id='CHECKOUT_ID') }}"
@@ -17,6 +19,12 @@
       data-signup-url="{{ url_for('auth.signup', next=url_for('main.cart')) }}"
       data-authenticated="{{ 'true' if current_user.is_authenticated else 'false' }}"
       data-csrf-token="{{ csrf_token() }}">
+  <div class="aura-bg" aria-hidden="true">
+    <span class="aura-layer-1"></span>
+    <span class="aura-layer-2"></span>
+    <span class="aura-layer-3"></span>
+    <span class="aura-layer-4"></span>
+  </div>
   <div class="page-loader" data-page-loader role="status" aria-live="polite" aria-label="Loading page" hidden>
     <span class="page-loader-spinner" aria-hidden="true"></span>
     <span>Loading…</span>
@@ -26,13 +34,16 @@
       <!-- Logo: left -->
       <a class="brand" href="{{ url_for('main.index') }}">
         <img src="{{ url_for('static', filename='img/logo.webp') }}" alt="" />
-        <span>marketplace</span>
+        <span>market<span class="brand-accent">place</span></span>
       </a>
 
       <!-- Actions: right -->
       <nav class="desk-nav" aria-label="Main">
         <a href="{{ url_for('main.index') }}" {% if request.endpoint == 'main.index' %}class="active"{% endif %}>Home</a>
         <a href="{{ url_for('main.browse') }}" {% if request.endpoint == 'main.browse' %}class="active"{% endif %}>Browse</a>
+        <a class="wishlist-nav-link" href="{{ url_for('main.wishlist') }}" {% if request.endpoint == 'main.wishlist' %}aria-current="page"{% endif %}>
+          <span>Saved</span><span class="wishlist-nav-count{% if not wishlist_count %} hidden{% endif %}" data-wishlist-count>{{ wishlist_count }}</span>
+        </a>
         <a href="{{ url_for('seller.new') }}" {% if request.endpoint == 'seller.new' %}class="active"{% endif %}>Sell</a>
         {% if is_admin %}
         <a href="{{ url_for('ads.manage') }}" {% if request.endpoint == 'ads.manage' %}class="active"{% endif %}>Ads</a>
@@ -45,7 +56,7 @@
         </form> -->
         <a class="nav-profile" href="{{ url_for('profile.view') }}">
           {% include "_avatar.html" with context %}
-          <span>Profile</span>
+          <span>Profile</span>{{ admin_badge(current_user) }}
         </a>
         {% else %}
           <a href="{{ url_for('auth.login', next=request.full_path if request.method == 'GET' and request.endpoint not in ('auth.login', 'auth.signup') else None) }}">Login</a>
@@ -70,7 +81,7 @@
       <div class="drawer-head">
         <a class="menu-brand" href="{{ url_for('main.index') }}">
           <img src="{{ url_for('static', filename='img/logo.webp') }}" alt="" />
-          <span>marketplace</span>
+          <span>market<span class="brand-accent">place</span></span>
         </a>
         <button class="icon-btn" type="button" aria-label="Close" data-close-menu>
           <svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 6l12 12M18 6 6 18"/></svg>
@@ -81,6 +92,7 @@
           <p class="menu-group-label">Shop</p>
           <a class="menu-link {% if request.endpoint == 'main.index' %}is-active{% endif %}" href="{{ url_for('main.index') }}" {% if request.endpoint == 'main.index' %}aria-current="page"{% endif %}>Home</a>
           <a class="menu-link {% if request.endpoint == 'main.browse' %}is-active{% endif %}" href="{{ url_for('main.browse') }}" {% if request.endpoint == 'main.browse' %}aria-current="page"{% endif %}>Browse</a>
+          <a class="menu-link {% if request.endpoint == 'main.wishlist' %}is-active{% endif %}" href="{{ url_for('main.wishlist') }}" {% if request.endpoint == 'main.wishlist' %}aria-current="page"{% endif %}>Saved products <span class="wishlist-nav-count{% if not wishlist_count %} hidden{% endif %}" data-wishlist-count>{{ wishlist_count }}</span></a>
           <a class="menu-link {% if request.endpoint == 'seller.new' %}is-active{% endif %}" href="{{ url_for('seller.new') }}" {% if request.endpoint == 'seller.new' %}aria-current="page"{% endif %}>Sell</a>
         </div>
         <div class="menu-group">
@@ -90,7 +102,7 @@
           <a class="menu-link {% if request.endpoint == 'main.admin_analytics' %}is-active{% endif %}" href="{{ url_for('main.admin_analytics') }}">Product analytics</a>
         {% endif %}
         {% if current_user.is_authenticated %}
-          <a class="menu-link {% if request.endpoint in ('profile.view', 'profile.edit') %}is-active{% endif %}" href="{{ url_for('profile.view') }}" {% if request.endpoint in ('profile.view', 'profile.edit') %}aria-current="page"{% endif %}>Profile</a>
+          <a class="menu-link {% if request.endpoint in ('profile.view', 'profile.edit') %}is-active{% endif %}" href="{{ url_for('profile.view') }}" {% if request.endpoint in ('profile.view', 'profile.edit') %}aria-current="page"{% endif %}>Profile {{ admin_badge(current_user) }}</a>
           <form method="post" action="{{ url_for('auth.logout') }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <button type="submit">Logout</button>
@@ -111,7 +123,7 @@
       <div class="drawer-head cart-drawer-head">
         <a class="cart-brand" href="{{ url_for('main.index') }}">
           <img src="{{ url_for('static', filename='img/logo.webp') }}" alt="" />
-          <span><strong>marketplace</strong><small id="cart-drawer-title">Your shopping bag</small></span>
+          <span><strong>market<span class="brand-accent">place</span></strong><small id="cart-drawer-title">Your shopping bag</small></span>
         </a>
         <div class="cart-head-actions">
           <span class="cart-item-count" data-cart-label>0 items</span>
@@ -199,7 +211,10 @@
       </nav>
       <div class="footer-bottom">
         <span>Copyright &copy; 2026 Comrade Marketplace</span>
-        <a href="{{ url_for('main.index') }}">Find something worth keeping.</a>
+        <span class="footer-legal">
+          <a href="{{ url_for('auth.terms') }}">Terms &amp; Conditions</a>
+          <a href="{{ url_for('main.index') }}">Find something worth keeping.</a>
+        </span>
       </div>
     </div>
   </footer>

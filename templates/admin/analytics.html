@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_admin_badge.html" import admin_badge %}
 {% block title %}Product analytics{% endblock %}
 {% block content %}
 <section class="wrap page admin-ads-page">
@@ -15,7 +16,7 @@
     <li>
       <div class="admin-analytics-product">
         <a href="{{ url_for('main.product_detail', slug=product.slug) }}"><strong>{{ product.title }}</strong></a>
-        <span>{{ product.seller.name }} · {{ product.status }}</span>
+        <span>{{ product.seller.name }}{{ admin_badge(product.seller) }} · {{ product.status }}</span>
       </div>
       <span class="admin-analytics-count">{{ unique_views }} {{ 'unique view' if unique_views == 1 else 'unique views' }}</span>
     </li>

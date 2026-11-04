@@ -1,0 +1,9 @@
+{% macro admin_badge(user) -%}
+{% if is_admin_account(user) -%}
+<span class="verified-badge" role="img" aria-label="Verified administrator" title="Verified administrator">
+  <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+    <path d="m4 8.2 2.5 2.5L12 5.5" />
+  </svg>
+</span>
+{%- endif %}
+{%- endmacro %}

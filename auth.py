@@ -1,4 +1,4 @@
-from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
+from flask import Blueprint, current_app, flash, redirect, render_template, request, session, url_for
 from flask_login import current_user, login_required, login_user, logout_user
 
 from extensions import db, oauth
@@ -21,8 +21,12 @@ def signup():
         name = request.form.get("name", "").strip()
         email = request.form.get("email", "").strip().lower()
         password = request.form.get("password", "")
+        terms_accepted = request.form.get("agree_terms") == "on"
+        age_confirmed = request.form.get("confirm_age") == "on"
         error = None
-        if not name or not email or "@" not in email:
+        if not terms_accepted or not age_confirmed:
+            error = "You must agree to the terms and confirm that you are at least 13 years old."
+        elif not name or not email or "@" not in email:
             error = "Please enter your name and a valid email."
         elif len(password) < 8:
             error = "Password must be at least 8 characters."
@@ -30,7 +34,13 @@ def signup():
             error = "An account with that email already exists. Try logging in."
         if error:
             flash(error, "error")
-            return render_template("auth/signup.html", name=name, email=email), 400
+            return render_template(
+                "auth/signup.html",
+                name=name,
+                email=email,
+                terms_accepted=terms_accepted,
+                age_confirmed=age_confirmed,
+            ), 400
         user = User(name=name, email=email)
         user.set_password(password)
         db.session.add(user)
@@ -39,6 +49,27 @@ def signup():
         flash("Welcome! Your account is ready.", "success")
         return _after_login()
     return render_template("auth/signup.html")
+
+
+@bp.route("/signup/google", methods=["POST"])
+def google_signup():
+    if current_user.is_authenticated:
+        return redirect(url_for("main.index"))
+    if request.form.get("agree_terms") != "on" or request.form.get("confirm_age") != "on":
+        flash("You must agree to the terms and confirm that you are at least 13 years old.", "error")
+        return redirect(url_for("auth.signup", next=request.form.get("next") or None))
+    if not current_app.config["GOOGLE_CLIENT_ID"]:
+        flash("Google sign-in isn't configured yet.", "error")
+        return redirect(url_for("auth.signup", next=request.form.get("next") or None))
+
+    session["google_signup_consent"] = True
+    session["google_signup_next"] = request.form.get("next", "")
+    return redirect(url_for("auth.google_login"))
+
+
+@bp.route("/terms")
+def terms():
+    return render_template("auth/terms.html")
 
 
 @bp.route("/login", methods=["GET", "POST"])
@@ -79,6 +110,8 @@ def google_login():
     try:
         return oauth.google.authorize_redirect(redirect_uri)
     except Exception:  # Google unreachable / misconfigured
+        session.pop("google_signup_consent", None)
+        session.pop("google_signup_next", None)
         current_app.logger.exception("Google OAuth redirect failed")
         flash("Couldn't reach Google right now. Please try again or use email and password.", "error")
         return redirect(url_for("auth.login"))
@@ -86,6 +119,8 @@ def google_login():
 
 @bp.route("/auth/google/callback")
 def google_callback():
+    signup_consent = session.pop("google_signup_consent", False)
+    signup_next = session.pop("google_signup_next", None)
     try:
         token = oauth.google.authorize_access_token()
     except Exception:  # denied consent, expired state, etc.
@@ -105,10 +140,15 @@ def google_callback():
         if user:
             user.google_id = google_id
         else:
+            if not signup_consent:
+                flash("Please agree to the terms and confirm your age before creating an account.", "error")
+                return redirect(url_for("auth.signup", next=signup_next or None))
             user = User(name=info.get("name") or email.split("@")[0], email=email, google_id=google_id)
             db.session.add(user)
     user.picture_url = info.get("picture") or user.picture_url
     db.session.commit()
 
     login_user(user, remember=True)
+    if is_safe_next(signup_next):
+        return redirect(signup_next)
     return _after_login()

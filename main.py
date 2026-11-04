@@ -2,9 +2,22 @@ import hashlib
 import hmac
 import secrets
 from datetime import datetime, timezone
+from decimal import Decimal, InvalidOperation
 from xml.etree import ElementTree
 
-from flask import Blueprint, Response, current_app, make_response, redirect, render_template, request, url_for
+from flask import (
+    Blueprint,
+    Response,
+    abort,
+    current_app,
+    jsonify,
+    make_response,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
 from flask_login import current_user
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 from sqlalchemy.exc import IntegrityError
@@ -15,6 +28,106 @@ from models import CATEGORIES, HomepageAd, Product, ProductView, STATUS_ACTIVE, 
 from utils import require_admin
 
 bp = Blueprint("main", __name__)
+PRODUCTS_PER_PAGE = 12
+PRODUCT_SORTS = {
+    "newest": "Newest",
+    "popular": "Most viewed",
+    "price_asc": "Price: low to high",
+    "price_desc": "Price: high to low",
+}
+
+
+def _price_bound(name):
+    value = request.args.get(name, "").strip()
+    if not value:
+        return None
+    try:
+        price = Decimal(value)
+    except InvalidOperation:
+        abort(400, description=f"Enter a valid {name.replace('_', ' ')}.")
+    if not price.is_finite() or price < 0 or price > Decimal("99999999.99"):
+        abort(400, description=f"Enter a valid {name.replace('_', ' ')}.")
+    return price
+
+
+def _product_listing(query, empty_message):
+    q = request.args.get("q", "").strip()
+    category = request.args.get("category", "")
+    show_sold = request.args.get("sold") == "1"
+    min_price = _price_bound("min_price")
+    max_price = _price_bound("max_price")
+    if min_price is not None and max_price is not None and min_price > max_price:
+        empty_message = "Minimum price cannot be greater than maximum price."
+
+    if not show_sold:
+        query = query.filter(Product.status == STATUS_ACTIVE)
+    if category in CATEGORIES:
+        query = query.filter(Product.category == category)
+    if q:
+        like = f"%{q}%"
+        query = query.filter(Product.title.ilike(like) | Product.description.ilike(like))
+
+    current_price = func.round(Product.price * (100 - Product.discount_percent) / 100, 2)
+    if min_price is not None:
+        query = query.filter(current_price >= min_price)
+    if max_price is not None:
+        query = query.filter(current_price <= max_price)
+    on_sale = request.args.get("sale") == "1"
+    if on_sale:
+        query = query.filter(Product.discount_percent > 0)
+
+    sort = request.args.get("sort", "newest")
+    if sort not in PRODUCT_SORTS:
+        sort = "newest"
+    if sort == "price_asc":
+        query = query.order_by(current_price.asc(), Product.id.asc())
+    elif sort == "price_desc":
+        query = query.order_by(current_price.desc(), Product.id.desc())
+    elif sort == "popular":
+        view_count = db.session.query(func.count(ProductView.id)).filter(
+            ProductView.product_id == Product.id,
+        ).correlate(Product).scalar_subquery()
+        query = query.order_by(view_count.desc(), Product.created_at.desc(), Product.id.desc())
+    else:
+        query = query.order_by(Product.created_at.desc(), Product.id.desc())
+
+    total = query.count()
+    try:
+        page = max(1, int(request.args.get("page", 1)))
+    except ValueError:
+        page = 1
+    pages = max(1, (total + PRODUCTS_PER_PAGE - 1) // PRODUCTS_PER_PAGE)
+    page = min(page, pages)
+    products = query.offset((page - 1) * PRODUCTS_PER_PAGE).limit(PRODUCTS_PER_PAGE).all()
+
+    query_args = request.args.to_dict()
+    query_args.pop("_partial", None)
+    query_args.pop("_suggest", None)
+    page_links = []
+    for page_number in range(1, pages + 1):
+        query_args["page"] = page_number
+        page_links.append({
+            "number": page_number,
+            "url": url_for(request.endpoint, **query_args),
+            "current": page_number == page,
+        })
+
+    return {
+        "products": products,
+        "total": total,
+        "page": page,
+        "pages": pages,
+        "page_links": page_links,
+        "q": q,
+        "category": category,
+        "show_sold": show_sold,
+        "min_price": request.args.get("min_price", ""),
+        "max_price": request.args.get("max_price", ""),
+        "sale_only": on_sale,
+        "sort": sort,
+        "sort_options": PRODUCT_SORTS,
+        "empty_message": empty_message,
+    }
 
 
 @bp.get("/sitemap.xml")
@@ -74,23 +187,71 @@ def index():
 
 @bp.route("/browse")
 def browse():
-    q = request.args.get("q", "").strip()
-    category = request.args.get("category", "")
-    show_sold = request.args.get("sold") == "1"
-
     query = Product.query.filter(public_listing_filter())
-    if not show_sold:
-        query = query.filter_by(status=STATUS_ACTIVE)
-    if category in CATEGORIES:
-        query = query.filter_by(category=category)
-    if q:
-        like = f"%{q}%"
-        query = query.filter(Product.title.ilike(like) | Product.description.ilike(like))
-    products = query.order_by(Product.created_at.desc()).all()
+    q = request.args.get("q", "").strip()
+    if request.args.get("_suggest") == "1":
+        products = query.filter_by(status=STATUS_ACTIVE).filter(
+            Product.title.ilike(f"%{q}%") | Product.description.ilike(f"%{q}%"),
+        ).order_by(Product.created_at.desc()).limit(6).all()
+        return render_template("_search_suggestions.html", products=products, q=q)
+    listing = _product_listing(query, "No products match your filters.")
     if request.args.get("_partial") == "1":
-        return render_template("_browse_results.html", products=products)
-    return render_template("browse.html", products=products, q=q, category=category,
-                           categories=CATEGORIES, show_sold=show_sold)
+        return render_template("_browse_results.html", **listing)
+    return render_template("browse.html", categories=CATEGORIES, listing_title="Browse",
+                           listing_kicker="The collection", **listing)
+
+
+@bp.get("/wishlist")
+def wishlist():
+    ids = session.get("wishlist", [])
+    if not isinstance(ids, list):
+        ids = []
+    ids = [
+        product_id for product_id in ids
+        if isinstance(product_id, int) and not isinstance(product_id, bool) and product_id > 0
+    ]
+    query = Product.query.filter(public_listing_filter(), Product.id.in_(ids))
+    listing = _product_listing(query, "No saved products yet. Tap the heart on a product to save it.")
+    if request.args.get("_partial") == "1":
+        return render_template("_browse_results.html", **listing)
+    return render_template("browse.html", categories=CATEGORIES, listing_title="Your favourites",
+                           listing_kicker="Saved for later", **listing)
+
+
+@bp.post("/wishlist/toggle")
+def wishlist_toggle():
+    data = request.get_json(silent=True) or request.form
+    raw_product_id = data.get("product_id", "")
+    if (
+        isinstance(raw_product_id, bool)
+        or not isinstance(raw_product_id, (int, str))
+        or not str(raw_product_id).isdecimal()
+    ):
+        return jsonify(error="Choose a valid product to save."), 400
+    product_id = int(raw_product_id)
+    if product_id < 1:
+        return jsonify(error="Choose a valid product to save."), 400
+    product = Product.query.filter(
+        Product.id == product_id,
+        public_listing_filter(),
+    ).first()
+    if product is None:
+        return jsonify(error="That product is no longer available."), 404
+
+    ids = session.get("wishlist", [])
+    if not isinstance(ids, list):
+        ids = []
+    saved_ids = {
+        item for item in ids
+        if isinstance(item, int) and not isinstance(item, bool) and item > 0
+    }
+    saved = product_id not in saved_ids
+    if saved:
+        saved_ids.add(product_id)
+    else:
+        saved_ids.remove(product_id)
+    session["wishlist"] = sorted(saved_ids)
+    return jsonify(saved=saved, count=len(saved_ids))
 
 
 @bp.route("/cart")

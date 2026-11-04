@@ -1,5 +1,6 @@
 import re
 from datetime import datetime, timezone
+from decimal import Decimal, ROUND_HALF_UP
 from urllib.parse import quote
 
 from flask import current_app, url_for
@@ -105,6 +106,9 @@ class Product(db.Model):
     title = db.Column(db.String(150), nullable=False)
     description = db.Column(db.Text, nullable=False, default="")
     price = db.Column(db.Numeric(10, 2), nullable=False)
+    discount_percent = db.Column(
+        db.Numeric(5, 2), nullable=False, default=Decimal("0.00"), server_default="0.00",
+    )
     stock = db.Column(db.Integer, nullable=False, default=0)
     image_path = db.Column(db.String(255), nullable=True)  # local path or r2:<object key>
     category = db.Column(db.String(50), nullable=False, default="Other", index=True)
@@ -122,6 +126,17 @@ class Product(db.Model):
     @property
     def is_available(self):
         return self.status == STATUS_ACTIVE and self.stock > 0
+
+    @property
+    def discounted_price(self):
+        discount = self.discount_percent or Decimal("0")
+        return (self.price * (Decimal("100") - discount) / Decimal("100")).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP,
+        )
+
+    @property
+    def discount_label(self):
+        return format((self.discount_percent or Decimal("0")).normalize(), "f")
 
     @property
     def image_url(self):

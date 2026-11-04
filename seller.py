@@ -34,6 +34,12 @@ def _parse_form(form, files):
         price = Decimal(form.get("price", "").strip()).quantize(Decimal("0.01"))
     except (InvalidOperation, ValueError):
         return None, "Please enter a valid price."
+    try:
+        discount_percent = Decimal(form.get("discount_percent", "5").strip()).quantize(
+            Decimal("0.01"),
+        )
+    except (InvalidOperation, ValueError):
+        return None, "Please enter a valid discount percentage."
     raw_stock = form.get("stock", "").strip()
     if not raw_stock.isdecimal():
         return None, "Please enter a whole-number stock quantity of 0 or more."
@@ -46,8 +52,10 @@ def _parse_form(form, files):
 
     if not title or len(title) > 150:
         return None, "Title is required (150 characters max)."
-    if price < 0 or price > Decimal("99999999.99"):
+    if not price.is_finite() or price < 0 or price > Decimal("99999999.99"):
         return None, "Price must be between 0 and 99,999,999.99."
+    if not discount_percent.is_finite() or discount_percent < 0 or discount_percent > 100:
+        return None, "Discount must be between 0% and 100%."
     if category not in CATEGORIES:
         return None, "Please choose a category."
     if status not in (STATUS_ACTIVE, STATUS_SOLD):
@@ -55,8 +63,9 @@ def _parse_form(form, files):
     image = files.get("image")
     if image and image.filename and not allowed_image(image.filename):
         return None, "Image must be a PNG, JPG, WEBP or GIF file."
-    return dict(title=title, description=description, price=price, stock=stock, category=category,
-                status=status, image=image if image and image.filename else None), None
+    return dict(title=title, description=description, price=price, discount_percent=discount_percent,
+                stock=stock, category=category, status=status,
+                image=image if image and image.filename else None), None
 
 
 @bp.route("/sell", methods=["GET", "POST"])

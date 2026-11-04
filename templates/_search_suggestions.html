@@ -1,0 +1,16 @@
+{% if products %}
+  {% for product in products %}
+  <a class="home-search-result" id="home-search-option-{{ loop.index }}" role="option" aria-selected="false"
+     href="{{ url_for('main.product_detail', slug=product.slug) }}">
+    <img src="{{ product.image_url }}" alt="" loading="lazy" />
+    <span class="home-search-result-info">
+      <strong>{{ product.title }}</strong>
+      <small>{{ product.category }}</small>
+    </span>
+    <span class="home-search-result-price">{{ product.discounted_price|money }}</span>
+  </a>
+  {% endfor %}
+  <a class="home-search-all" href="{{ url_for('main.browse', q=q) }}">See all results</a>
+{% else %}
+  <p class="home-search-empty">No products found. Try another search.</p>
+{% endif %}

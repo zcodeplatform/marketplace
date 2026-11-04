@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-{% block title %}Browse{% endblock %}
+{% block title %}{{ listing_title }}{% endblock %}
 {% block content %}
 <section class="wrap page">
   <div class="browse-heading">
     <div>
-      <p class="kicker">The collection</p>
-      <h1 class="page-title">Browse</h1>
+      <p class="kicker">{{ listing_kicker }}</p>
+      <h1 class="page-title">{{ listing_title }}</h1>
     </div>
   </div>
   <form class="filters" method="get" data-live-search>
@@ -14,8 +14,22 @@
       <option value="">All categories</option>
       {% for c in categories %}<option value="{{ c }}" {{ 'selected' if c == category }}>{{ c }}</option>{% endfor %}
     </select>
-    <label class="check"><input type="checkbox" name="sold" value="1" {{ 'checked' if show_sold }} /> Include sold</label>
-    <button class="btn btn-sm" type="submit">Filter</button>
+    <div class="filter-price-range">
+      <label class="filter-price">Min price
+        <input type="number" name="min_price" min="0" step="0.01" value="{{ min_price }}" placeholder="Any" />
+      </label>
+      <label class="filter-price">Max price
+        <input type="number" name="max_price" min="0" step="0.01" value="{{ max_price }}" placeholder="Any" />
+      </label>
+    </div>
+    <select name="sort" aria-label="Sort products">
+      {% for key, label in sort_options.items() %}<option value="{{ key }}" {{ 'selected' if key == sort }}>{{ label }}</option>{% endfor %}
+    </select>
+    <div class="filter-options">
+      <label class="check"><input type="checkbox" name="sale" value="1" {{ 'checked' if sale_only }} /> On sale</label>
+      <label class="check"><input type="checkbox" name="sold" value="1" {{ 'checked' if show_sold }} /> Include sold</label>
+    </div>
+    <button class="btn btn-sm" type="submit">Apply filters</button>
   </form>
   <div id="product-results" aria-live="polite" aria-busy="false">
     {% include "_browse_results.html" %}

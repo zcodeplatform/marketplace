@@ -38,6 +38,11 @@ function savePayment() {
   } catch {}
 }
 const count = () => state.lines.reduce((n, l) => n + l.qty, 0);
+const cartSubtotalCents = () => state.lines.reduce(
+  (sum, line) => sum + Math.round(Number(line.price) * 100) * line.qty,
+  0,
+);
+const mpesaTotal = () => Math.floor(cartSubtotalCents() / 100 + 0.5);
 
 function add(item, quantity = 1) {
   const stock = Number(item.stock);
@@ -45,7 +50,7 @@ function add(item, quantity = 1) {
   quantity = Math.min(stock, Math.max(1, Math.floor(Number(quantity) || 1)));
   const line = state.lines.find((l) => l.id === item.id);
   if (line) {
-    line.stock = stock;
+    Object.assign(line, item, { stock });
     line.qty = Math.min(stock, line.qty + quantity);
   } else state.lines.push({ ...item, stock, qty: quantity });
   state.done = false;
@@ -147,14 +152,15 @@ function paintCart() {
     body.querySelector("[data-back]").onclick = () => { state.done = false; };
     return;
   }
-  const total = lines.reduce((n, l) => n + l.price * l.qty, 0);
+  const total = cartSubtotalCents() / 100;
+  const payable = mpesaTotal();
   body.innerHTML = `
     <ul class="lines">
       ${lines.map((l) => `<li class="line">
         <img src="${esc(l.image)}" alt="" />
         <div class="line-info">
           <div class="line-top"><p>${esc(l.name)}</p><button class="remove-line" type="button" aria-label="Remove ${esc(l.name)}" data-remove="${esc(l.id)}">Remove</button></div>
-          <p class="muted">${money(l.price)} each</p>
+          <p class="muted">${money(l.price)} each${l.original_price ? ` · <del>${money(l.original_price)}</del>` : ""}</p>
           <div class="qty">
             <button type="button" aria-label="Decrease quantity of ${esc(l.name)}" data-dec="${esc(l.id)}">−</button>
             <span aria-live="polite">${l.qty}</span>
@@ -167,6 +173,8 @@ function paintCart() {
     <div class="checkout">
       <p class="delivery-caption">Delivery details are agreed with each seller.</p>
       <div class="subtotal"><span class="muted">Subtotal</span><strong>${money(total)}</strong></div>
+      <div class="subtotal"><span class="muted">M-Pesa amount</span><strong>${money(payable)}</strong></div>
+      ${payable !== total ? '<small class="cart-rounding-note">M-Pesa payments are rounded to the nearest whole shilling.</small>' : ""}
       <a class="btn" href="${esc(document.body.dataset.cartUrl)}">Continue to checkout</a>
     </div>`;
   const qtyOf = (id) => state.lines.find((l) => l.id === id).qty;
@@ -199,7 +207,8 @@ function paintCartPage() {
     return;
   }
 
-  const total = state.lines.reduce((sum, line) => sum + line.price * line.qty, 0);
+  const total = cartSubtotalCents() / 100;
+  const payable = mpesaTotal();
   const authenticated = document.body.dataset.authenticated === "true";
   const pending = state.payment && state.payment.status === "pending";
   const failed = state.payment && ["failed", "cancelled"].includes(state.payment.status);
@@ -211,7 +220,7 @@ function paintCartPage() {
             <img src="${esc(line.image)}" alt="" />
             <div class="line-info">
               <div class="line-top"><p>${esc(line.name)}</p><button type="button" aria-label="Remove ${esc(line.name)}" data-remove="${esc(line.id)}">Remove</button></div>
-              <p class="muted">${money(line.price)} each</p>
+              <p class="muted">${money(line.price)} each${line.original_price ? ` · <del>${money(line.original_price)}</del>` : ""}</p>
               <div class="qty">
                 <button type="button" aria-label="Decrease quantity" data-dec="${esc(line.id)}">−</button>
                 <span>${line.qty}</span>
@@ -225,6 +234,8 @@ function paintCartPage() {
       <aside class="cart-summary">
         <h2>Order summary</h2>
         <div class="subtotal"><span>Subtotal</span><strong>${money(total)}</strong></div>
+        <div class="subtotal"><span>M-Pesa amount</span><strong>${money(payable)}</strong></div>
+        ${payable !== total ? '<small class="cart-rounding-note">M-Pesa payments are rounded to the nearest whole shilling.</small>' : ""}
         <p>Delivery details are agreed with each seller.</p>
         ${pending && authenticated ? `
           <div class="payment-message" role="status" data-payment-status>Waiting for M-Pesa confirmation…</div>
@@ -273,7 +284,7 @@ async function startCheckout(event) {
   const form = event.currentTarget;
   const button = form.querySelector('button[type="submit"]');
   const status = document.querySelector("[data-checkout-status]");
-  const cents = state.lines.reduce((sum, line) => sum + Math.round(Number(line.price) * 100) * line.qty, 0);
+  const total = mpesaTotal();
   button.disabled = true;
   status.textContent = "Checking your cart and contacting M-Pesa…";
 
@@ -286,11 +297,11 @@ async function startCheckout(event) {
       },
       body: JSON.stringify({
         phone: form.elements.phone.value,
-        expected_total: (cents / 100).toFixed(2),
+        expected_total: total.toFixed(2),
         items: state.lines.map((line) => ({ id: Number(line.id), qty: line.qty })),
       }),
     });
-    const data = await response.json();
+    const data = await response.json().catch(() => ({}));
     if (response.status === 401) {
       window.location.assign(data.login_url || document.body.dataset.loginUrl);
       return;
@@ -428,9 +439,61 @@ document.addEventListener("click", (e) => {
     id: btn.dataset.id,
     name: btn.dataset.name,
     price: Number(btn.dataset.price),
+    original_price: Number(btn.dataset.originalPrice) > Number(btn.dataset.price)
+      ? Number(btn.dataset.originalPrice)
+      : null,
     image: btn.dataset.image,
     stock: Number(btn.dataset.stock),
   }, quantity);
+});
+
+document.addEventListener("click", async (event) => {
+  const button = event.target.closest("[data-wishlist-toggle]");
+  if (!button || button.disabled) return;
+  event.preventDefault();
+  button.disabled = true;
+  try {
+    const response = await fetch(document.body.dataset.wishlistUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-CSRFToken": document.body.dataset.csrfToken,
+        "X-Requested-With": "XMLHttpRequest",
+      },
+      body: JSON.stringify({ product_id: Number(button.dataset.id) }),
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Could not update your saved products.");
+
+    button.classList.toggle("is-saved", data.saved);
+    button.setAttribute("aria-pressed", String(data.saved));
+    const title = button.dataset.title || "product";
+    button.setAttribute(
+      "aria-label",
+      `${data.saved ? "Remove" : "Save"} ${title} ${data.saved ? "from" : "to"} favourites`,
+    );
+    const buttonText = button.querySelector("span");
+    if (buttonText) buttonText.textContent = data.saved ? "Saved" : "Save";
+    document.querySelectorAll("[data-wishlist-count]").forEach((countBadge) => {
+      countBadge.textContent = String(data.count);
+      countBadge.classList.toggle("hidden", data.count === 0);
+    });
+    button.parentElement.querySelector("[data-wishlist-error]")?.remove();
+
+    if (!data.saved && window.location.pathname === "/wishlist") window.location.reload();
+  } catch (error) {
+    let feedback = button.parentElement.querySelector("[data-wishlist-error]");
+    if (!feedback) {
+      feedback = document.createElement("span");
+      feedback.className = "wishlist-error";
+      feedback.setAttribute("role", "status");
+      feedback.setAttribute("data-wishlist-error", "");
+      button.insertAdjacentElement("afterend", feedback);
+    }
+    feedback.textContent = error.message || "Could not update your saved products. Please try again.";
+  } finally {
+    button.disabled = false;
+  }
 });
 
 document.addEventListener("click", (event) => {
@@ -504,6 +567,13 @@ window.addEventListener("pageshow", () => {
 const liveSearch = document.querySelector("[data-live-search]");
 const productResults = document.querySelector("#product-results");
 
+document.querySelectorAll(".profile-photo-upload input[type=file]").forEach((input) => {
+  input.addEventListener("change", () => {
+    const label = input.closest(".profile-photo-upload")?.querySelector("[data-file-picker-label]");
+    if (label && input.files.length) label.textContent = input.files[0].name;
+  });
+});
+
 if (liveSearch && productResults) {
   let searchTimer;
   let searchRequest;
@@ -518,6 +588,22 @@ if (liveSearch && productResults) {
     }
     const visibleParams = new URLSearchParams(params);
     const url = new URL(liveSearch.action || window.location.pathname, window.location.origin);
+    const minPrice = liveSearch.querySelector('[name="min_price"]').value;
+    const maxPrice = liveSearch.querySelector('[name="max_price"]').value;
+    if (minPrice && maxPrice && Number(minPrice) > Number(maxPrice)) {
+      const notice = document.createElement("p");
+      notice.className = "empty-note";
+      notice.setAttribute("role", "status");
+      notice.textContent = "Minimum price cannot be greater than maximum price.";
+      productResults.replaceChildren(notice);
+      productResults.setAttribute("aria-busy", "false");
+      history.replaceState(
+        null,
+        "",
+        `${url.pathname}${visibleParams.size ? `?${visibleParams}` : ""}`,
+      );
+      return;
+    }
     params.set("_partial", "1");
     url.search = params.toString();
     productResults.setAttribute("aria-busy", "true");
@@ -541,18 +627,146 @@ if (liveSearch && productResults) {
   };
 
   liveSearch.addEventListener("input", (event) => {
-    if (event.target.matches('input[type="search"]')) {
+    if (event.target.matches('input[type="search"], input[type="number"]')) {
       clearTimeout(searchTimer);
       searchTimer = setTimeout(refreshResults, 250);
     }
   });
   liveSearch.addEventListener("change", (event) => {
-    if (event.target.matches("select, input[type=checkbox]")) refreshResults();
+    if (event.target.matches("select, input[type=checkbox], input[type=number]")) refreshResults();
   });
   liveSearch.addEventListener("submit", (event) => {
     event.preventDefault();
     clearTimeout(searchTimer);
     refreshResults();
+  });
+}
+
+const homeSearch = document.querySelector("[data-home-search]");
+
+if (homeSearch) {
+  const header = document.querySelector("header");
+  const bar = header.querySelector(".bar");
+  const brand = bar.querySelector(".brand");
+  const placeholder = document.createElement("div");
+  placeholder.className = "hero-search-placeholder";
+  placeholder.setAttribute("aria-hidden", "true");
+  placeholder.style.height = `${homeSearch.getBoundingClientRect().height}px`;
+  homeSearch.after(placeholder);
+
+  let placementFrame;
+  const updateSearchPlacement = () => {
+    placementFrame = undefined;
+    const shouldPin =
+      placeholder.getBoundingClientRect().bottom <= header.getBoundingClientRect().bottom;
+    if (shouldPin && homeSearch.parentElement !== bar) {
+      bar.insertBefore(homeSearch, brand.nextSibling);
+      bar.classList.add("has-sticky-search");
+    } else if (!shouldPin && homeSearch.parentElement === bar) {
+      placeholder.before(homeSearch);
+      bar.classList.remove("has-sticky-search");
+    }
+  };
+  const scheduleSearchPlacement = () => {
+    if (placementFrame === undefined) {
+      placementFrame = window.requestAnimationFrame(updateSearchPlacement);
+    }
+  };
+
+  window.addEventListener("scroll", scheduleSearchPlacement, { passive: true });
+  window.addEventListener("resize", scheduleSearchPlacement);
+  scheduleSearchPlacement();
+
+  const searchInput = homeSearch.querySelector('input[name="q"]');
+  const suggestions = homeSearch.querySelector("[data-home-search-results]");
+  let searchTimer;
+  let searchRequest;
+  let activeOption = -1;
+
+  const closeSuggestions = () => {
+    suggestions.hidden = true;
+    searchInput.setAttribute("aria-expanded", "false");
+    searchInput.removeAttribute("aria-activedescendant");
+    activeOption = -1;
+  };
+
+  const refreshSuggestions = async () => {
+    searchRequest?.abort();
+    const query = searchInput.value.trim();
+    if (!query) {
+      closeSuggestions();
+      return;
+    }
+
+    const controller = new AbortController();
+    searchRequest = controller;
+    const url = new URL(homeSearch.dataset.suggestionsUrl, window.location.origin);
+    url.searchParams.set("q", query);
+    url.searchParams.set("_suggest", "1");
+    suggestions.hidden = false;
+    suggestions.setAttribute("aria-busy", "true");
+    suggestions.innerHTML = '<p class="home-search-status" role="status">Searching…</p>';
+    searchInput.setAttribute("aria-expanded", "true");
+    searchInput.removeAttribute("aria-activedescendant");
+    activeOption = -1;
+
+    try {
+      const response = await fetch(url, { signal: controller.signal });
+      if (!response.ok) throw new Error("Search suggestions request failed");
+      suggestions.innerHTML = await response.text();
+    } catch (error) {
+      if (error.name !== "AbortError") {
+        suggestions.innerHTML = '<p class="home-search-empty" role="status">Search is unavailable right now. Please try again.</p>';
+      }
+    } finally {
+      if (!controller.signal.aborted) suggestions.setAttribute("aria-busy", "false");
+    }
+  };
+
+  const selectOption = (direction) => {
+    const options = suggestions.querySelectorAll('[role="option"]');
+    if (!options.length) return;
+    activeOption = activeOption < 0
+      ? (direction > 0 ? 0 : options.length - 1)
+      : (activeOption + direction + options.length) % options.length;
+    options.forEach((option, optionIndex) => {
+      const selected = optionIndex === activeOption;
+      option.setAttribute("aria-selected", String(selected));
+      if (selected) searchInput.setAttribute("aria-activedescendant", option.id);
+    });
+  };
+
+  searchInput.addEventListener("input", () => {
+    clearTimeout(searchTimer);
+    searchTimer = window.setTimeout(refreshSuggestions, 180);
+  });
+  searchInput.addEventListener("focus", () => {
+    if (searchInput.value.trim() && suggestions.hidden) refreshSuggestions();
+  });
+  searchInput.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      closeSuggestions();
+    } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      if (suggestions.hidden) refreshSuggestions();
+      else selectOption(event.key === "ArrowDown" ? 1 : -1);
+    } else if (event.key === "Enter" && activeOption >= 0) {
+      const option = suggestions.querySelectorAll('[role="option"]')[activeOption];
+      if (option) {
+        event.preventDefault();
+        window.location.assign(option.href);
+      }
+    }
+  });
+  homeSearch.addEventListener("submit", (event) => {
+    const option = suggestions.querySelectorAll('[role="option"]')[activeOption];
+    if (option) {
+      event.preventDefault();
+      window.location.assign(option.href);
+    }
+  });
+  document.addEventListener("pointerdown", (event) => {
+    if (!homeSearch.contains(event.target)) closeSuggestions();
   });
 }
 

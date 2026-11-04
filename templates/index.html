@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_card.html" import product_card %}
+{% from "_card.html" import product_card with context %}
 {% block title %}Home{% endblock %}
 {% block content %}
 <section class="store-hero" aria-labelledby="store-hero-title">
@@ -8,9 +8,19 @@
       <!-- <p class="kicker">Comrade goods, comrade profit</p> -->
       <h1 id="store-hero-title">Comrade marketplace,<br />Bei yetu.</h1>
       <p class="store-hero-copy">Comrade market, buy sell products from the comfort of your hostel/room. Pata customer chap chap</p>
-      <form class="hero-search" method="get" action="{{ url_for('main.browse') }}" role="search">
-        <input type="search" name="q" placeholder="What are you looking for?" aria-label="Search products" />
-        <button class="btn" type="submit">Search</button>
+      <form class="hero-search" method="get" action="{{ url_for('main.browse') }}" role="search"
+            data-home-search data-suggestions-url="{{ url_for('main.browse') }}">
+        <div class="hero-search-field">
+          <svg class="hero-search-icon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="10.8" cy="10.8" r="6.8" />
+            <path d="m16 16 4.2 4.2" />
+          </svg>
+          <input type="search" name="q" placeholder="What are you looking for?" aria-label="Search products"
+                 autocomplete="off" aria-autocomplete="list" aria-controls="home-search-results"
+                 aria-expanded="false" />
+          <div class="home-search-results" id="home-search-results" role="listbox"
+               aria-label="Product suggestions" aria-busy="false" data-home-search-results hidden></div>
+        </div>
       </form>
       <div class="store-hero-actions">
         <a class="btn store-hero-browse" href="{{ url_for('main.browse') }}">Explore market</a>
@@ -18,7 +28,7 @@
       </div>
     </div>
     <div class="store-hero-visual">
-      <img class="store-hero-image" src="{{ url_for('static', filename='img/hero.webp') }}" alt="Ceramics and folded linen displayed in a sunlit room" />
+      <img class="store-hero-image" src="{{ url_for('static', filename='img/hero-illustration.svg') }}" alt="A shopping bag filled with clothing, groceries, and books" />
     </div>
   </div>
 </section>

@@ -3,7 +3,7 @@ import re
 import secrets
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, ROUND_DOWN, ROUND_HALF_UP
 
 from flask import Blueprint, current_app, flash, jsonify, redirect, request, url_for
 from flask_login import current_user, login_required
@@ -84,11 +84,14 @@ def _cart_snapshot(quantities):
                 f"Insufficient stock for {product.title}. "
                 f"Only {product.stock} item(s) are available."
             )
-        total += product.price * quantity
+        discounted_price = product.discounted_price
+        total += discounted_price * quantity
         items.append({
             "id": product.id,
             "name": product.title,
-            "price": format(product.price, ".2f"),
+            "price": format(discounted_price, ".2f"),
+            "original_price": format(product.price, ".2f"),
+            "discount_percent": format(product.discount_percent, ".2f"),
             "image": product.image_url,
             "qty": quantity,
             "seller_id": product.seller_id,
@@ -96,6 +99,21 @@ def _cart_snapshot(quantities):
 
     items.sort(key=lambda item: item["id"])
     return items, total, None
+
+
+def _allocate_seller_amounts(seller_amounts, total, payable_total):
+    allocated = {}
+    remainders = []
+    for seller_id, amount in seller_amounts.items():
+        exact_cents = amount * payable_total / total * 100
+        whole_cents = exact_cents.to_integral_value(rounding=ROUND_DOWN)
+        allocated[seller_id] = whole_cents / 100
+        remainders.append((exact_cents - whole_cents, seller_id))
+
+    remaining_cents = int((payable_total - sum(allocated.values())) * 100)
+    for _, seller_id in sorted(remainders, reverse=True)[:remaining_cents]:
+        allocated[seller_id] += Decimal("0.01")
+    return allocated
 
 
 def _reserve_inventory(quantities):
@@ -196,25 +214,30 @@ def start_stk_push():
         seller_items[seller_id].append({key: value for key, value in item.items() if key != "seller_id"})
         seller_amounts[seller_id] += Decimal(item["price"]) * item["qty"]
 
+    payable_total = total.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+    if total > 0 and payable_total > 0:
+        seller_amounts = _allocate_seller_amounts(seller_amounts, total, payable_total)
+
     expected_total = data.get("expected_total")
     try:
-        if Decimal(str(expected_total)) != total:
+        if Decimal(str(expected_total)) != payable_total:
             return jsonify(
                 error="Product prices changed. Review the updated total and try again.",
                 items=[{key: value for key, value in item.items() if key != "seller_id"} for item in items],
                 total=format(total, ".2f"),
+                payable_total=format(payable_total, ".2f"),
             ), 409
     except (InvalidOperation, TypeError, ValueError):
         return jsonify(error="Your cart total is invalid. Refresh the cart and try again."), 400
 
-    if total < 1 or total != total.to_integral_value():
+    if payable_total < 1:
         return jsonify(error="M-Pesa checkout requires a whole-shilling total of at least KES 1."), 400
 
     reference = f"MP{secrets.token_hex(4).upper()}"
     payment = Payment(
         reference=reference,
         phone_number=phone_number,
-        amount=int(total),
+        amount=int(payable_total),
         items_json=json.dumps(items),
         status="pending",
         buyer_id=current_user.id,
@@ -240,7 +263,7 @@ def start_stk_push():
         return jsonify(error="Could not start checkout. Please try again."), 500
 
     try:
-        response = stk_push(phone_number, int(total), reference)
+        response = stk_push(phone_number, int(payable_total), reference)
     except MpesaError as error:
         try:
             _set_checkout_payment_result(payment, 1, {"message": str(error)})
@@ -273,7 +296,7 @@ def start_stk_push():
         message="Payment prompt sent. Enter your M-Pesa PIN on your phone.",
         checkout_id=payment.checkout_request_id,
         reference=reference,
-        amount=int(total),
+        amount=int(payable_total),
     ), 202
 
 
