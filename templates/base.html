@@ -150,6 +150,67 @@
 
     {% block content %}{% endblock %}
   </main>
+  <section class="shopping-assistant" data-shopping-assistant
+           data-chat-url="{{ url_for('assistant.chat') }}"
+           data-user-id="{{ current_user.id if current_user.is_authenticated else '' }}"
+           aria-label="Shopping assistant">
+    <button class="assistant-launcher" type="button" data-assistant-toggle
+            aria-controls="shopping-assistant-panel" aria-expanded="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 0 0-7.3 12.9L4 20l3.8-.8A8.5 8.5 0 1 0 12 3.5Z"/><path d="M8.5 12h.01M12 12h.01M15.5 12h.01"/></svg>
+      <span>AI Assistant</span>
+    </button>
+    <section class="assistant-panel" id="shopping-assistant-panel" data-assistant-panel
+             aria-labelledby="shopping-assistant-title" hidden>
+      <header class="assistant-header">
+        <div class="assistant-brand">
+          <img src="{{ url_for('static', filename='img/logo.webp') }}" alt="" />
+          <div>
+            <h2 id="shopping-assistant-title">Market Assistant</h2>
+            <p>Find something worth keeping.</p>
+          </div>
+        </div>
+        <div class="assistant-header-actions">
+          {% if current_user.is_authenticated and shopping_assistant_enabled %}
+          <button type="button" data-assistant-new aria-label="Start a new chat" title="Start a new chat">New</button>
+          {% endif %}
+          <button type="button" data-assistant-close aria-label="Close shopping assistant">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 6 12 12M18 6 6 18"/></svg>
+          </button>
+        </div>
+      </header>
+      {% if current_user.is_authenticated and shopping_assistant_enabled %}
+      <div class="assistant-messages" data-assistant-messages role="log" aria-live="polite" aria-relevant="additions text"></div>
+      <form class="assistant-form" data-assistant-form>
+        <label class="assistant-sr-only" for="shopping-assistant-input">Ask about products</label>
+        <input id="shopping-assistant-input" name="message" type="text" maxlength="4000"
+               placeholder="What are you looking for?" autocomplete="off" required />
+        <button type="submit" data-assistant-send aria-label="Send message">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 4 17 8-17 8 3-8-3-8Z"/><path d="M7 12h14"/></svg>
+        </button>
+      </form>
+      <p class="assistant-privacy">AI suggestions can be inaccurate. Your chat stays in this browser session; messages and relevant product listings are sent to our AI provider.</p>
+      {% elif current_user.is_authenticated %}
+      <div class="assistant-messages" role="status">
+        <div class="assistant-message assistant-message-assistant">The shopping assistant is temporarily unavailable. Please try again later.</div>
+      </div>
+      {% else %}
+      <div class="assistant-messages">
+        <div class="assistant-message assistant-message-assistant">
+          {% if shopping_assistant_enabled %}
+          Sign in to chat with the shopping assistant and get help finding products.
+          {% else %}
+          The shopping assistant is being set up. Please check back soon.
+          {% endif %}
+        </div>
+        <nav class="assistant-signin-actions" aria-label="Shopping assistant account options">
+          <a class="assistant-signin-primary" href="{{ url_for('auth.login', next=request.path) }}">Log in to chat</a>
+          <a class="assistant-signin-secondary" href="{{ url_for('auth.signup', next=request.path) }}">Create account</a>
+        </nav>
+      </div>
+      {% endif %}
+    </section>
+  </section>
+  <script src="{{ url_for('static', filename='js/assistant.js') }}"></script>
   <footer class="site-footer">
     <div class="wrap">
       <div class="footer-main">

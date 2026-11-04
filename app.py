@@ -31,12 +31,13 @@ def create_app(config_object=None):
 
     from auth import bp as auth_bp
     from ads import bp as ads_bp
+    from assistant import bp as assistant_bp
     from main import bp as main_bp
     from account import bp as profile_bp
     from payments import bp as payments_bp
     from seller import bp as seller_bp
 
-    for bp in (main_bp, auth_bp, ads_bp, seller_bp, profile_bp, payments_bp):
+    for bp in (main_bp, auth_bp, ads_bp, assistant_bp, seller_bp, profile_bp, payments_bp):
         app.register_blueprint(bp)
 
     @app.context_processor
@@ -59,6 +60,7 @@ def create_app(config_object=None):
             "image_accept": ",".join(
                 f".{extension}" for extension in sorted(app.config["ALLOWED_IMAGE_EXTENSIONS"])
             ),
+            "shopping_assistant_enabled": bool(app.config.get("OPENROUTER_API_KEY")),
         }
 
     @app.template_filter("money")

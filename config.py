@@ -27,6 +27,11 @@ class Config:
     GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
     ADMIN_EMAILS = os.environ.get("ADMIN_EMAILS", "")
 
+    OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY", "")
+    OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "openai/gpt-4o-mini")
+    OPENROUTER_SITE_URL = os.environ.get("OPENROUTER_SITE_URL", "")
+    OPENROUTER_APP_NAME = os.environ.get("OPENROUTER_APP_NAME", "Comrade Marketplace")
+
     MPESA_BASE_URL = os.environ.get("MPESA_BASE_URL", "https://sandbox.safaricom.co.ke").rstrip("/")
     MPESA_CONSUMER_KEY = os.environ.get("MPESA_CONSUMER_KEY", "")
     MPESA_CONSUMER_SECRET = os.environ.get("MPESA_CONSUMER_SECRET", "")

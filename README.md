@@ -46,6 +46,12 @@ python -m unittest discover -s tests
 
 The Google sign-in option is shown only when both values are configured. Users can also sign up with an email and password.
 
+### Shopping assistant (optional)
+
+The signed-in shopping assistant uses OpenRouter to stream product suggestions based on currently visible, in-stock marketplace listings. Configure `OPENROUTER_API_KEY` in `.env` to enable it. `OPENROUTER_MODEL` selects the server-side model (default: `openai/gpt-4o-mini`); optionally set `OPENROUTER_SITE_URL` and `OPENROUTER_APP_NAME` for OpenRouter request attribution.
+
+The assistant does not place orders or access account or payment data. Chat history is kept in the current browser session and is not stored in the marketplace database. Messages and a limited set of relevant public product listing details are sent to OpenRouter to generate replies. Restart the Flask app after changing environment settings.
+
 ### Homepage ads
 
 Set `ADMIN_EMAILS` to a comma-separated list of marketplace account emails authorized to manage banners, for example:
